@@ -1,0 +1,94 @@
+/* ==========================================================================
+   1. INTEGRATION NATIVE TAILWIND CSS v4 (Moteur Graphique Premium)
+   ========================================================================== */
+@import "tailwindcss";
+
+/* ==========================================================================
+   2. CONFIGURATION DES VARIABLES DE THEME (Forçage Thème Sombre d'Origine)
+   ========================================================================== */
+:root {
+  /* Forçage du Noir Profond et des accents de la plateforme par défaut */
+  --bg-color: #050505;
+  --card-bg: rgba(18, 18, 18, 0.8);
+  --text-main: #ffffff;
+  --text-sub: #a0a0a0;
+  --border-color: rgba(255, 255, 255, 0.05);
+  --input-bg: #141414;
+  --code-bg: #1a1a1a;
+  
+  /* Couleur Accent Premium (Identité 2D-Invest) */
+  --accent-color: #00c896;
+  --accent-glow: rgba(0, 200, 150, 0.15);
+}
+
+/* Optionnel : Si jamais tu réactives un switch de thème plus tard */
+[data-theme='light'] {
+  --bg-color: #f0f2f5;
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --text-main: #1a1a1a;
+  --text-sub: #666666;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --input-bg: #ffffff;
+  --code-bg: #f8f9fa;
+}
+
+/* ==========================================================================
+   3. REINITIALISATION MATERIELLE ET FLUIDITE RAPIDE (60 FPS CPU/GPU)
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  /* BLOCAGE DES TRANSITIONS SUR LE SELECTEUR GLOBAL : Libère 90% de la mémoire vive */
+  transition: none; 
+}
+
+html, body {
+  background-color: var(--bg-color) !important;
+  color: var(--text-main);
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  overflow-x: hidden;
+  width: 100%;
+  min-height: 100vh;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Masquage des barres de défilement pour un effet application épurée */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+/* Masquage barre de défilement pour navigateurs basés sur Chromium (Chrome, Safari, Opera) */
+html::-webkit-scrollbar, body::-webkit-scrollbar {
+  display: none;
+}
+
+/* ==========================================================================
+   4. OPTIMISATION DES COMPOSANTS INTERACTIFS (Transitions Ciblé)
+   ========================================================================== */
+/* On applique les animations UNIQUEMENT sur les éléments cliquables pour préserver le processeur */
+button, a, input, select, textarea {
+  font-family: inherit;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+              color 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+              border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.1s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Suppression des effets de surbrillance bleus parasites sur mobile (iOS/Android) */
+input, button, a, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* Optimisation des inputs de type number (Suppression des flèches natives disgracieuses) */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}

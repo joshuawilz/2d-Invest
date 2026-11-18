@@ -3,184 +3,271 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "../../lib/supabase"
+import { notifyError, notifySuccess } from "../../lib/alerts"
 
 export default function DepositPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [amount, setAmount] = useState("")
-  const [method, setMethod] = useState("KkiaPay") 
-  const [manualPhone, setManualPhone] = useState("")
-  const [reference, setReference] = useState("")
-  const [screenshot, setScreenshot] = useState(null)
+  const [selectedCountry, setSelectedCountry] = useState("TG")
+  const [showMethods, setShowMethods] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [isDark, setIsDark] = useState(true)
 
-  const adminNumbers = {
-    moov: "+22898127546",
-    mix: "+22872018494"
-  }
+  const [cryptoEquivalent, setCryptoEquivalent] = useState("0.00")
+  const [usdtToFcfaRate, setUsdtToFcfaRate] = useState(615) 
+  const [dbNetworkFee, setDbNetworkFee] = useState(1000) // Valeur de repli (environ 1.6 USDT)
+  const [isCalculating, setIsCalculating] = useState(false)
+  
+  const SERVICE_FEE_PCT = 0.01; 
+  const SLIPPAGE_BUFFER = 3; 
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text)
-    alert("Numéro copié : " + text)
-  }
+  const countries = [
+    { code: "TG", name: "Togo", flag: "🇹🇬" },
+    { code: "CI", name: "Côte d'Ivoire", flag: "🇨🇮" },
+    { code: "BJ", name: "Bénin", flag: "🇧🇯" },
+    { code: "SN", name: "Sénégal", flag: "🇸🇳" },
+    { code: "ML", name: "Mali", flag: "🇲🇱" },
+    { code: "BF", name: "Burkina Faso", flag: "🇧🇫" }
+  ]
 
   useEffect(() => {
-    const script = document.createElement("script")
-    script.src = "https://cdn.kkiapay.me/k.js"
-    script.async = true
-    document.body.appendChild(script)
+    const savedTheme = localStorage.getItem('theme')
+    if (savedTheme) setIsDark(savedTheme === 'dark')
 
-    const checkUser = async () => {
+    // Récupération immédiate du dernier taux en cache pour la rapidité
+    const cachedRate = localStorage.getItem('last_usdt_rate')
+    if (cachedRate) setUsdtToFcfaRate(Number(cachedRate))
+
+    const init = async () => {
       const phone = localStorage.getItem("phone")
-      if (!phone) return router.push("/auth/login")
-      const { data } = await supabase.from("users").select("*").eq("phone", phone).single()
-      if (data) setUser(data)
+      if (!phone) return router.push("/")
+      
+      // 1. Synchronisation Utilisateur
+      const { data: userData } = await supabase.from("users").select("*").eq("phone", phone).single()
+      if (userData) {
+        setUser(userData)
+        setSelectedCountry(userData.country_code || "TG")
+      }
+
+      // 2. Synchronisation Frais Réseau (app_settings)
+      const { data: settings } = await supabase.from("app_settings").select("key, value")
+      if (settings) {
+        const tronFee = settings.find(s => s.key === 'tron_network_fee')?.value
+        if (tronFee) setDbNetworkFee(Number(tronFee))
+      }
+
+      // 3. Mise à jour Taux Live
+      try {
+        const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD')
+        const dataRate = await res.json()
+        if (dataRate.rates.XOF) {
+          const newRate = dataRate.rates.XOF
+          setUsdtToFcfaRate(newRate)
+          localStorage.setItem('last_usdt_rate', newRate.toString())
+        }
+      } catch (e) { console.log("Utilisation du taux local") }
     }
-    checkUser()
+    init()
   }, [router])
 
-  const handleKkiaPay = () => {
-    if (!amount || amount < 2000) return alert("Le montant minimum est de 2 000 FCFA")
-    if (window.openKkiapayWidget) {
-      window.openKkiapayWidget({
-        amount: amount,
-        position: "center",
-        callback: "",
-        data: "Recharge 2D Invest",
-        key: "787fd930093411f1af0faf42cfae880d",
-        sandbox: true 
-      })
-      window.addEventListener("success", async (e) => {
-        setLoading(true)
-        const newBalance = (user.recharge_balance || 0) + Number(amount)
-        const { error } = await supabase.from("users").update({ recharge_balance: newBalance }).eq("phone", user.phone)
-        if (!error) {
-          alert("✅ Paiement réussi ! Votre solde sera mis à jour d'ici 3 minutes.")
-          router.push("/dashboard")
-        }
-        setLoading(false)
-      })
-    } else { alert("Le module charge encore...") }
+  // Calcul fluide avec animation haptique
+  useEffect(() => {
+    setIsCalculating(true)
+    const timer = setTimeout(() => {
+      const cleanAmount = parseFloat(amount)
+      if (!isNaN(cleanAmount) && cleanAmount >= 2000) {
+        const secureRate = usdtToFcfaRate - SLIPPAGE_BUFFER; 
+        const baseInUsdt = cleanAmount / secureRate;
+        const networkFeeInUsdt = dbNetworkFee / secureRate;
+        
+        // Formule : (Montant Voulu + 1%) + Frais Réseau Réels
+        const totalToPay = (baseInUsdt * (1 + SERVICE_FEE_PCT)) + networkFeeInUsdt;
+        setCryptoEquivalent(totalToPay.toFixed(2))
+      } else {
+        setCryptoEquivalent("0.00")
+      }
+      setIsCalculating(false)
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [amount, usdtToFcfaRate, dbNetworkFee])
+
+  const handleOpenMethods = () => {
+    const cleanAmount = Math.floor(Number(amount))
+    if (!cleanAmount || cleanAmount < 2000) return notifyError("Minimum 2 000 FCFA")
+    setShowMethods(true)
   }
 
-  const handleManualSubmit = async () => {
-    if (!amount || amount < 2000) return alert("Minimum 2 000 FCFA")
-    if (!manualPhone || !reference || !screenshot) return alert("Complétez tous les champs.")
+  const handleMobilePay = async () => {
+    if (loading) return
+    setShowMethods(false)
     setLoading(true)
     try {
-      const fileExt = screenshot.name.split('.').pop()
-      const fileName = `${user.phone}_${Date.now()}.${fileExt}`
-      const { data: uploadData, error: uploadError } = await supabase.storage.from('reçus').upload(fileName, screenshot)
-      if (uploadError) throw uploadError
-      const { error } = await supabase.from("DEPOSITS").insert({
-        user_phone: user.phone, amount: Number(amount), method: "MANUAL",
-        sender: manualPhone, reference: reference, proof_url: fileName, status: "pending"
+      const response = await fetch('/api/payments/mobile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.user_id_code,
+          phone: user.phone,
+          amount: Math.floor(Number(amount)),
+          country: selectedCountry
+        })
       })
-      if (!error) {
-        alert("📩 Reçu envoyé ! Votre compte sera crédité dans 3 minutes après vérification.")
-        router.push("/dashboard")
-      }
-    } catch (err) { alert("Erreur : " + err.message) } finally { setLoading(false) }
+      const result = await response.json()
+      if (result.success && result.payment_url) window.location.href = result.payment_url
+      else router.push("/deposit/manual")
+    } catch (err) { router.push("/deposit/manual") } 
+    finally { setLoading(false) }
   }
 
-  if (!user) return <div style={{background:"#0a0a0a", height:"100vh"}}></div>
+  const handleCryptoPay = async () => {
+    if (loading) return
+    setShowMethods(false)
+    setLoading(true)
+    try {
+      const response = await fetch('/api/payments/crypto/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userIdCode: user.user_id_code,
+          amountCfa: Math.floor(Number(amount)),
+          cryptoAmount: cryptoEquivalent,
+          rateUsed: usdtToFcfaRate - SLIPPAGE_BUFFER,
+          networkFeeApplied: dbNetworkFee
+        })
+      })
+      const result = await response.json()
+      if (result.success && result.payment_url) window.location.href = result.payment_url
+      else notifyError("Erreur", result.error || "Échec génération")
+    } catch (err) { notifyError("Échec Réseau", "Serveur injoignable") } 
+    finally { setLoading(false) }
+  }
+
+  if (!user) return <div style={{background: isDark ? "#050505" : "#fbfbfb", height:"100vh"}}></div>
 
   return (
-    <div style={containerStyle}>
-      <div style={{display:"flex", alignItems:"center", gap:15, marginBottom:25}}>
-        <button onClick={() => router.back()} style={backBtn}>❮</button>
-        <h2 style={{margin:0, fontSize:20}}>Rechargement</h2>
-      </div>
-
-      <div style={cardStyle}>
-        <p style={labelStyle}>Montant à recharger (FCFA)</p>
-        <input type="number" placeholder="Min: 2000" value={amount} onChange={(e)=>setAmount(e.target.value)} style={inputAmount} />
-      </div>
-
-      <div style={{marginTop:25}}>
-        <div onClick={() => setMethod("KkiaPay")} style={{...methodCard, border: method === "KkiaPay" ? "1px solid #00c896" : "1px solid #222"}}>
-           🚀 <span>Paiement KkiaPay (Auto)</span>
-        </div>
-        <div onClick={() => setMethod("Manual")} style={{...methodCard, border: method === "Manual" ? "1px solid #ff9800" : "1px solid #222"}}>
-           📑 <span>Transfert Manuel (T-Money/Moov)</span>
+    <div style={{...s.container, background: isDark ? "#050505" : "#fbfbfb", color: isDark ? "#fff" : "#000"}}>
+      
+      <div style={s.header}>
+        <button onClick={() => router.push('/dashboard')} style={{...s.backBtn, background: isDark ? "#111" : "#eee", color: isDark ? "#fff" : "#000"}}>❮</button>
+        <div style={{textAlign:'right'}}>
+            <span style={s.label}>COMPTE CLIENT</span>
+            <span style={{fontSize:13, fontWeight:'900', color:'#00c896', display:'block'}}>ID: {user.user_id_code}</span>
         </div>
       </div>
 
-      <div style={{marginTop:25}}>
-        {method === "KkiaPay" ? (
-          <div>
-            <button onClick={handleKkiaPay} style={mainBtn}>TESTER LE PAIEMENT</button>
-            <p style={timeNotice}>⏳ Temps de traitement : ~3 min</p>
-          </div>
-        ) : (
-          <div style={{display:"flex", flexDirection:"column", gap:12}}>
-            <div style={infoBox}>
-              <p style={{margin:0, fontSize:12, opacity:0.7, marginBottom:10}}>Cliquez sur un numéro pour le copier :</p>
-              
-              <div onClick={() => copyToClipboard(adminNumbers.moov)} style={copyRow}>
-                <div style={{textAlign:'left'}}>
-                  <span style={{fontSize:10, color:'#ff9800', display:'block'}}>MOOV MONEY</span>
-                  <span style={{fontSize:16, fontWeight:'bold'}}>{adminNumbers.moov}</span>
-                </div>
-                <span style={copyBadge}>Copier</span>
-              </div>
+      <div style={{...s.balanceCard, background: isDark ? "#0d0d0d" : "#fff", borderColor: isDark ? "#1a1a1a" : "#f0f0f0"}}>
+        <p style={s.label}>SOLDE DE RECHARGE ACTUEL</p>
+        <h2 style={s.balanceText}>{(user.recharge_balance || 0).toLocaleString()} <span style={{fontSize:14}}>FCFA</span></h2>
+        <div style={{height:3, width:25, background:'#00c896', margin:'10px auto', borderRadius:5}}></div>
+      </div>
 
-              <div onClick={() => copyToClipboard(adminNumbers.mix)} style={{...copyRow, marginTop:10}}>
-                <div style={{textAlign:'left'}}>
-                  <span style={{fontSize:10, color:'#00c896', display:'block'}}>MIX BY YAS (T-MONEY)</span>
-                  <span style={{fontSize:16, fontWeight:'bold'}}>{adminNumbers.mix}</span>
-                </div>
-                <span style={copyBadge}>Copier</span>
-              </div>
+      <div style={{...s.inputCard, background: isDark ? "#0d0d0d" : "#fff", borderColor: isDark ? "#1a1a1a" : "#f0f0f0", marginBottom: 15}}>
+        <p style={s.label}>PAYS DE RÉSIDENCE</p>
+        <select 
+          value={selectedCountry}
+          onChange={(e) => setSelectedCountry(e.target.value)}
+          style={{...s.selectInput, color: isDark ? "#fff" : "#000", background: isDark ? "#111" : "#f9f9f9"}}
+        >
+          {countries.map((c) => (
+            <option key={c.code} value={c.code}>{c.flag} &nbsp; {c.name}</option>
+          ))}
+        </select>
+      </div>
 
-              <p style={{...timeNotice, marginTop:15}}>⏳ Crédité sous 3 minutes</p>
+      <div style={{...s.inputCard, background: isDark ? "#0d0d0d" : "#fff", borderColor: isDark ? "#1a1a1a" : "#f0f0f0"}}>
+        <p style={s.label}>MONTANT À DÉPOSER (FCFA)</p>
+        <input 
+          type="number" 
+          value={amount} 
+          onChange={(e)=>setAmount(e.target.value)} 
+          style={{...s.amountInput, color: isDark ? "#fff" : "#000"}} 
+          placeholder="0" 
+        />
+        
+        <div style={{marginTop: 15, paddingTop: 15, borderTop: isDark ? '1px solid #1a1a1a' : '1px solid #f0f0f0', textAlign: 'center'}}>
+          <p style={{fontSize:10, opacity:0.6, margin:0, fontWeight:'bold'}}>TOTAL À ENVOYER</p>
+          <p style={{
+              fontSize:28, 
+              fontWeight:'900', 
+              color:'#ff9800', 
+              margin:'4px 0 0 0',
+              opacity: isCalculating ? 0.4 : 1,
+              transition: '0.2s ease'
+            }}>
+            {cryptoEquivalent} <span style={{fontSize:16}}>USDT</span>
+          </p>
+          <p style={{fontSize:9, color: isDark ? '#444' : '#ccc', marginTop:8, fontWeight:'700'}}>
+            * Crédit immédiat de {Number(amount).toLocaleString()} FCFA après confirmation
+          </p>
+        </div>
+      </div>
+
+      <div style={{marginTop: 30}}>
+        <button onClick={handleOpenMethods} style={{...s.mainBtn, opacity: loading ? 0.6 : 1}} disabled={loading}>
+          {loading ? "TRAITEMENT..." : "RECHARGER MAINTENANT"}
+        </button>
+      </div>
+
+      {showMethods && (
+        <div style={s.modalOverlay} onClick={() => !loading && setShowMethods(false)}>
+          <div style={{...s.bottomSheet, background: isDark ? "#0d0d0d" : "#fff"}} onClick={(e) => e.stopPropagation()}>
+            <div style={s.pullBar}></div>
+            <h3 style={{textAlign: 'center', fontSize: 13, fontWeight: '900', marginBottom: 25, letterSpacing:1}}>MODE DE PAIEMENT</h3>
+
+            <div style={{...s.paymentOption, borderColor: isDark ? "#1a1a1a" : "#eee"}} onClick={handleMobilePay}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 15}}>
+                <div style={s.iconWrapper}>📱</div>
+                <div>
+                  <p style={{fontSize: 12, fontWeight: '900', margin: 0}}>MOBILE MONEY</p>
+                  <p style={{fontSize: 9, opacity: 0.5, margin: 0}}>T-Money, Flooz, Wave, Orange...</p>
+                </div>
+              </div>
+              <span style={{fontSize: 14, color: '#00c896'}}>❯</span>
             </div>
 
-            <input type="text" placeholder="Votre numéro d'envoi" value={manualPhone} onChange={(e)=>setManualPhone(e.target.value)} style={inputField} />
-            <input type="text" placeholder="ID de la transaction" value={reference} onChange={(e)=>setReference(e.target.value)} style={inputField} />
-            <label style={uploadArea}>
-               {screenshot ? "✅ Reçu sélectionné" : "📸 Cliquez pour joindre le reçu"}
-               <input type="file" accept="image/*" onChange={(e)=>setScreenshot(e.target.files[0])} style={{display:"none"}} />
-            </label>
-            <button onClick={handleManualSubmit} disabled={loading} style={{...mainBtn, background:"#ff9800"}}>
-               {loading ? "Envoi..." : "VALIDER LE TRANSFERT"}
-            </button>
+            <div style={{...s.paymentOption, borderColor: isDark ? "#1a1a1a" : "#eee", marginTop: 15}} onClick={handleCryptoPay}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 15}}>
+                <div style={{...s.iconWrapper, background: 'rgba(255,152,0,0.1)', color: '#ff9800'}}>🪙</div>
+                <div>
+                  <p style={{fontSize: 12, fontWeight: '900', margin: 0}}>CRYPTOMONNAIES</p>
+                  <p style={{fontSize: 9, opacity: 0.5, margin: 0}}>USDT (TRC20 / BEP20)</p>
+                </div>
+              </div>
+              <span style={{fontSize: 14, color: '#ff9800'}}>❯</span>
+            </div>
+
+            <div style={{marginTop: 20, textAlign:'center'}}>
+                <p style={{fontSize:8, opacity:0.4, fontWeight:'bold', textTransform:'uppercase'}}>Sécurité Blockchain Active</p>
+            </div>
+
+            <button onClick={() => setShowMethods(false)} style={s.cancelBtn}>ANNULER</button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      <style jsx global>{`
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+      `}</style>
     </div>
   )
 }
 
-/* --- STYLES --- */
-const containerStyle = { background: "#0a0a0a", minHeight: "100vh", color: "white", padding: 25, fontFamily: "sans-serif" }
-const backBtn = { background: "#1a1a1a", border: "none", color: "white", width: 40, height: 40, borderRadius: "50%", cursor:"pointer" }
-const cardStyle = { background: "#111", padding: 20, borderRadius: 20, border: "1px solid #222" }
-const labelStyle = { fontSize: 11, opacity: 0.5, marginBottom: 5 }
-const inputAmount = { background: "none", border: "none", color: "white", fontSize: 28, fontWeight: "bold", width: "100%", outline: "none" }
-const methodCard = { background: "#111", padding: 18, borderRadius: 15, marginBottom: 10, cursor:"pointer", display:"flex", gap:10 }
-const mainBtn = { width: "100%", padding: 18, background: "#00c896", color: "white", border: "none", borderRadius: 15, fontWeight: "bold", cursor:"pointer" }
-const infoBox = { background: "#1a1a1a", padding: 15, borderRadius: 15, textAlign: "center", border: "1px dashed #333" }
-const inputField = { background: "#111", border: "1px solid #222", padding: 15, borderRadius: 12, color: "white", outline:"none" }
-const uploadArea = { border: "2px dashed #333", padding: 15, borderRadius: 12, textAlign: "center", fontSize: 13, cursor: "pointer", background: "#111", color: "#888" }
-const timeNotice = { textAlign: "center", fontSize: 11, opacity: 0.5, color: "#ffd700" }
-
-const copyRow = { 
-  display: 'flex', 
-  justifyContent: 'space-between', 
-  alignItems: 'center', 
-  background: '#000', 
-  padding: '12px 15px', 
-  borderRadius: '12px', 
-  cursor: 'pointer', 
-  border: '1px solid #222' 
-}
-const copyBadge = { 
-  fontSize: 10, 
-  background: '#333', 
-  padding: '4px 8px', 
-  borderRadius: '6px', 
-  color: '#00c896', 
-  fontWeight: 'bold', 
-  textTransform: 'uppercase' 
+const s = {
+  container: { minHeight: "100vh", padding: "20px", fontFamily: "system-ui", transition: 'background 0.3s' },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25 },
+  backBtn: { border: "none", width: 42, height: 42, borderRadius: "14px", cursor:"pointer", display:'flex', alignItems:'center', justifyContent:'center' },
+  balanceCard: { padding: "25px 20px", borderRadius: 28, border: "1px solid", textAlign:'center', marginBottom:20 },
+  balanceText: { margin:0, color:'#00c896', fontSize: 34, fontWeight:'900', letterSpacing: '-1px' },
+  inputCard: { padding: "20px", borderRadius: 24, border: "1px solid" },
+  label: { fontSize: 9, opacity: 0.5, marginBottom: 10, fontWeight:'900', letterSpacing:'1.2px', textTransform:'uppercase' },
+  selectInput: { width: "100%", padding: "16px", borderRadius: "14px", border: "1px solid #222", outline: "none", fontSize: 14, fontWeight: "900" },
+  amountInput: { background: "none", border: "none", fontSize: 36, fontWeight: "900", width: "100%", outline: "none", textAlign:'center', letterSpacing:'-1px' },
+  mainBtn: { width: "100%", padding: "20px", background: "#00c896", color: "black", border: "none", borderRadius: 20, fontWeight: "900", fontSize: 15, cursor:"pointer", boxShadow: '0 10px 20px rgba(0,200,150,0.2)' },
+  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'flex-end', zIndex: 1000, backdropFilter: 'blur(8px)' },
+  bottomSheet: { width: '100%', borderTopLeftRadius: 40, borderTopRightRadius: 40, padding: '20px 24px 40px 24px', animation: 'slideUp 0.4s cubic-bezier(0, 0.55, 0.45, 1)' },
+  pullBar: { width: 45, height: 5, background: '#222', borderRadius: 10, margin: '0 auto 25px auto' },
+  paymentOption: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderRadius: 22, border: '1px solid', cursor: 'pointer', transition: '0.2s' },
+  iconWrapper: { width: 40, height: 40, borderRadius: 12, background: 'rgba(0,200,150,0.1)', color: '#00c896', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 },
+  cancelBtn: { width: "100%", padding: "15px", background: "none", color: "#666", border: "none", fontWeight: "900", fontSize: 12, cursor:"pointer", marginTop: 15 }
 }

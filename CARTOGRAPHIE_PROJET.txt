@@ -1,0 +1,197 @@
+﻿==================================================
+PAGE TROUVÉE : app\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useEffect, useState } from "react"
+   import { useRouter } from "next/navigation"
+   import { supabase } from "../lib/supabase"
+
+==================================================
+PAGE TROUVÉE : app\admin\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect, useRef } from "react"
+   import { supabase } from "../../lib/supabase"
+   import { useRouter } from "next/navigation"
+   import Swal from 'sweetalert2'
+[Liaisons et Actions détectées] :
+   -> const [view, setView] = useState("users")
+   -> router.push("/")
+   -> if (view === "support_tickets") loadData();
+   -> .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, () => { loadStats(); if(view === 'deposits') loadData(); })
+   -> .on('postgres_changes', { event: '*', schema: 'public', table: 'withdraws' }, () => { loadStats(); if(view === 'withdraws') loadData(); })
+   -> if (view === "support_tickets") query = query.eq('admin_read', false);
+   -> if (view === "support_tickets") {
+   -> return supportSubView === "reclamations" ? isReclamation : !isReclamation;
+   -> subject: supportSubView === "reclamations" ? "RÃ‰PONSE RÃ‰CLAMATION" : "CHAT DIRECT",
+   -> if (view === 'deposits' && newStatus === 'success') {
+   -> if (view === 'deposits') {
+   -> if (view === 'withdraws') {
+   -> <button onClick={() => {setView("users"); setActiveChatPhone(null); setShowAllMessages(false)}} style={view === "users" ? s.navActive : s.navBtn}>
+   -> <button onClick={() => {setView("deposits"); setActiveChatPhone(null); setShowAllMessages(false)}} style={view === "deposits" ? s.navActive : s.navBtn}>
+   -> <button onClick={() => {setView("withdraws"); setActiveChatPhone(null); setShowAllMessages(false)}} style={view === "withdraws" ? s.navActive : s.navBtn}>
+   -> <button onClick={() => {setView("support_tickets"); setActiveChatPhone(null); setShowAllMessages(false)}} style={view === "support_tickets" ? s.navActive : s.navBtn}>
+   -> {!activeChatPhone && view === "support_tickets" && (
+   -> <button onClick={() => setSupportSubView("reclamations")} style={supportSubView === 'reclamations' ? s.tabActive : s.tab}>âš ï¸ RÃ‰CLAMATIONS</button>
+   -> <button onClick={() => setSupportSubView("chat")} style={supportSubView === 'chat' ? s.tabActive : s.tab}>ðŸ’¬ CHAT DIRECT</button>
+   -> style={{...s.tr, cursor: view === 'support_tickets' ? 'pointer' : 'default'}}
+   -> if (view === 'support_tickets') {
+   -> {view === 'users' && <div style={s.onlineDot}></div>}
+   -> {view === 'users' ? (
+   -> ) : view === 'support_tickets' ? (
+   -> <b style={{ color: view === 'deposits' ? '#00c896' : '#ff4d4d', fontSize: '18px' }}>{item.amount?.toLocaleString()} F</b>
+   -> {view === 'users' ? (
+   -> ) : view === 'support_tickets' ? (
+   -> {view === 'deposits' && (
+
+==================================================
+PAGE TROUVÉE : app\commandes\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect, useCallback } from "react"
+   import { useRouter } from "next/navigation"
+   import { supabase } from "../../lib/supabase"
+[Liaisons et Actions détectées] :
+   -> return router.push("/register");
+   -> <button onClick={() => router.push("/dashboard")} style={{...s.backBtn, background: isDark ? "#111" : "#eee", color: isDark ? "#fff" : "#000"}}>â®</button>
+
+==================================================
+PAGE TROUVÉE : app\dashboard\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect, useRef } from "react"
+   import { useRouter } from "next/navigation"
+   import { supabase } from "../../lib/supabase"
+   import { confirmAction, notifySuccess, notifyError, toast } from "../../lib/alerts"
+   import Swal from 'sweetalert2'
+[Liaisons et Actions détectées] :
+   -> router.push("/support");
+   -> if (!phoneRaw) return router.push("/register")
+   -> router.push("/register");
+   -> if (payload.new.status === 'banned') { localStorage.clear(); router.push("/register"); }
+   -> <ActionIcon icon="ðŸ“¥" text="DÃ©pÃ´t" color="#00c896" click={() => router.push("/deposit")} />
+   -> <ActionIcon icon="ðŸ“¤" text="Retrait" color="#ff4d4d" click={() => router.push("/withdraw")} />
+   -> <ActionIcon icon="ðŸ•’" text="Historique" color="#ff9800" click={() => router.push("/history")} />
+   -> <ActionIcon icon="ðŸ“¦" text="Commandes" color="#a155ff" click={() => router.push("/commandes")} />
+   -> <div onClick={() => router.push("/commandes")} style={orderBtnHeader}>
+   -> <div style={iconBoxCompte} onClick={() => router.push("/settings/wallet")}><div style={{...iconCircle, color: '#ffd700', background: '#ffd70015'}}>ðŸ¦</div><span>Portefeuilles</span></div>
+   -> <div style={iconBoxCompte} onClick={async () => { const out = await confirmAction("DÃ©connexion", "Voulez-vous quitter l'application ?"); if(out){localStorage.clear(); router.push("/register");} }}><div style={{...iconCircle, color: '#ff4d4d', background: '#ff4d4d15'}}>ðŸšª</div><span>DÃ©connecter</span></div>
+
+==================================================
+PAGE TROUVÉE : app\deposit\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect } from "react"
+   import { useRouter } from "next/navigation"
+   import { supabase } from "../../lib/supabase"
+   import { showError, showSuccess } from "../../lib/alerts"
+[Liaisons et Actions détectées] :
+   -> if (!phone) return router.push("/")
+   -> else router.push("/deposit/manual")
+   -> } catch (err) { router.push("/deposit/manual") }
+   -> <button onClick={() => router.push('/dashboard')} style={{...s.backBtn, background: isDark ? "#111" : "#eee", color: isDark ? "#fff" : "#000"}}>â®</button>
+
+==================================================
+PAGE TROUVÉE : app\deposit\manual\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useRouter } from "next/navigation"
+   import { useEffect, useState } from "react"
+   import Swal from 'sweetalert2'
+[Liaisons et Actions détectées] :
+   -> router.push("/")
+   -> if (result.success) router.push("/deposit-confirm")
+
+==================================================
+PAGE TROUVÉE : app\deposit-confirm\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useRouter } from "next/navigation"
+   import { useEffect, useState } from "react"
+[Liaisons et Actions détectées] :
+   -> onClick={() => router.push("/history")}
+   -> onClick={() => router.push("/dashboard")}
+
+==================================================
+PAGE TROUVÉE : app\history\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect } from "react"
+   import { useRouter } from "next/navigation"
+   import { supabase } from "../../lib/supabase"
+   import Swal from 'sweetalert2'
+[Liaisons et Actions détectées] :
+   -> if (!phone) return router.push("/register")
+   -> <button onClick={() => router.push('/dashboard')} style={s.backBtn}>â®</button>
+
+==================================================
+PAGE TROUVÉE : app\register\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect, useRef, useMemo } from "react"
+   import { useRouter } from "next/navigation"
+   import { supabase } from "../../lib/supabase"
+   import { notifyError, notifyAccessCreated, toastHUD } from "../../lib/alerts"
+[Liaisons et Actions détectées] :
+   -> router.push("/dashboard")
+   -> router.push("/dashboard")
+
+==================================================
+PAGE TROUVÉE : app\settings\wallet\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect } from "react"
+   import { supabase } from "../../../lib/supabase"
+   import { useRouter } from "next/navigation"
+   import Swal from 'sweetalert2'
+
+==================================================
+PAGE TROUVÉE : app\support\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect, useRef } from "react"
+   import { useRouter } from "next/navigation"
+   import { supabase } from "../../lib/supabase"
+   import Swal from 'sweetalert2'
+[Liaisons et Actions détectées] :
+   -> const [view, setView] = useState("menu")
+   -> if (view === "chat") {
+   -> if (view === "chat" && tickets.length > 0) {
+   -> setView("menu");
+   -> if(view !== "menu") { setView("menu"); setSelectedFiles([]); setPreviews([]); }
+   -> {view === "menu" && (
+   -> <div style={s.card} onClick={() => setView("chat")}>
+   -> <div style={s.card} onClick={() => setView("claim")}>
+   -> {view === "chat" && (
+   -> {view === "claim" && (
+
+==================================================
+PAGE TROUVÉE : app\transactions\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useEffect, useState } from "react"
+   import { supabase } from "../../lib/supabase"
+   import { useRouter } from "next/navigation"
+[Liaisons et Actions détectées] :
+   -> if (!phone) return router.push("/auth/login")
+
+==================================================
+PAGE TROUVÉE : app\withdraw\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useState, useEffect } from "react"
+   import { supabase } from "../../lib/supabase"
+   import { useRouter } from "next/navigation"
+   import { showError, showSuccess, confirmAction } from "../../lib/alerts"
+[Liaisons et Actions détectées] :
+   -> if (!phone) return router.push("/")
+   -> router.push('/dashboard')
+
+==================================================
+PAGE TROUVÉE : app\withdraw-confirm\page.js
+==================================================
+[Imports détectés / Dépendances] :
+   import { useRouter } from "next/navigation"
+[Liaisons et Actions détectées] :
+   -> onClick={() => router.push("/history")}
+

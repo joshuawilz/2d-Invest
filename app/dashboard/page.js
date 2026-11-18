@@ -1,333 +1,885 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "../../lib/supabase"
+import { confirmAction, notifySuccess, notifyError } from "../../lib/alerts"
+import Swal from 'sweetalert2'
 
-// Fonction pour générer l'ID unique de 4 caractères (Chiffres + Lettres)
-const generateReferralID = () => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-  let id = ""
-  for(let i=0; i<4; i++){ id += chars.charAt(Math.floor(Math.random()*chars.length)) }
-  return id
-}
-
+// --- ARSENAL DE CONFIGURATION STRICTE ---
 const packsData = [
-  { id: 1, name: "Pack Beginner", min: 2000, max: 10000, percent: 5, days: 30, color: "#00c896" },
-  { id: 2, name: "Starter", min: 10001, max: 30000, percent: 7, days: 30, color: "#00d4ff" },
-  { id: 3, name: "Advanced", min: 30001, max: 50000, percent: 10, days: 20, color: "#ffd700" },
-  { id: 4, name: "Pro", min: 50001, max: 70000, percent: 15, days: 20, color: "#ff4d4d" },
-  { id: 5, name: "Elite", min: 70001, max: 100000, percent: 20, days: 15, color: "#a155ff" },
-  { id: 6, name: "ULTIMATE VIP", min: 100001, max: 999999999, percent: 25, days: 10, color: "#ff00ff" }
+  { id: 1, name: "SaaS Software", min: 2000, max: 10000, percent: 5, days: 30, color: "#00c896", logo: "https://cdn-icons-png.flaticon.com/512/5968/5968313.png" },
+  { id: 2, name: "Digital Marketing", min: 10001, max: 30000, percent: 7, days: 30, color: "#00d4ff", logo: "https://cdn-icons-png.flaticon.com/512/1998/1998087.png" },
+  { id: 3, name: "E-Learning AI", min: 30001, max: 50000, percent: 10, days: 20, color: "#ffd700", logo: "https://cdn-icons-png.flaticon.com/512/2436/2436874.png", badge: "POPULAIRE" },
+  { id: 4, name: "Blockchain Node", min: 50001, max: 70000, percent: 15, days: 20, color: "#ff4d4d", logo: "https://cdn-icons-png.flaticon.com/512/2091/2091614.png" },
+  { id: 5, name: "Master Resell", min: 70001, max: 100000, percent: 20, days: 15, color: "#a155ff", logo: "https://cdn-icons-png.flaticon.com/512/10169/10169724.png", badge: "HOT" },
+  { id: 6, name: "Global Ecosystem", min: 100001, max: 999999999, percent: 25, days: 10, color: "#ff00ff", logo: "https://cdn-icons-png.flaticon.com/512/4762/4762311.png" }
 ]
+
+const feedActivities = [
+  { id: 1, txt: "+228 **** 1029 vient de retirer 25 000 FCFA" },
+  { id: 2, txt: "+225 **** 4892 vient de retirer 105 500 FCFA" },
+  { id: 3, txt: "+221 **** 9931 vient de retirer 12 000 FCFA" },
+  { id: 4, txt: "+229 **** 5564 vient d'investir dans Blockchain Node" },
+  { id: 5, txt: "+226 **** 1102 vient de retirer 45 000 FCFA" },
+  { id: 6, txt: "+228 **** 7741 vient d'investir dans SaaS Software" }
+]
+
+// --- COMPOSANTS DE L'INFRASTRUCTURE VISUELLE ---
+const NavBtn = ({ icon, label, active, click }) => (
+  <button onClick={click} className="premium-nav-btn" style={{
+    flex: 1, background: active ? "rgba(0, 200, 150, 0.06)" : "none",
+    border: "none", padding: '10px 2px', borderRadius: '16px',
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: 'center',
+    color: active ? "#00c896" : "#6b7280", transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', outline: 'none', cursor: 'pointer', position: 'relative'
+  }}>
+    <span style={{ fontSize: "20px", transform: active ? 'scale(1.05)' : 'scale(1)', transition: '0.2s' }}>{icon}</span>
+    <span style={{ fontSize: "9px", marginTop:'4px', fontWeight: active ? '900' : '600', letterSpacing:'0.2px', textTransform:'uppercase' }}>{label}</span>
+    {active && <div style={{position:'absolute', bottom:'4px', width:'4px', height:'4px', background:'#00c896', borderRadius:'50%', boxShadow:'0 0 8px #00c896'}} />}
+  </button>
+)
+
+const ActionIcon = ({ icon, text, color, badge, click }) => (
+  <div onClick={click} className="premium-action-card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", flex: 1, cursor: 'pointer' }}>
+    <div style={{ width: "48px", height: "48px", borderRadius: "16px", backgroundColor: `${color}10`, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", border: `1px solid ${color}15`, position: 'relative' }}>
+      {icon}
+      {badge > 0 && <div style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#ff3b30', color: 'white', fontSize: '8px', fontWeight: 'bold', width: '15px', height: '15px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</div>}
+    </div>
+    <span style={{ fontSize: "9px", fontWeight: "800", opacity: 0.8, textAlign: 'center', whiteSpace: 'nowrap' }}>{text}</span>
+  </div>
+)
+
+// SQUELETTE SCINTILLANT POUR CHARGEMENT DES FILLEULS (ANTI-LATENCE NET)
+const ShimmerRow = () => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 8px', borderBottom: '1px solid var(--border-color)', alignItems: 'center' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+      <div className="shimmer-pulse" style={{ width: '34px', height: '34px', borderRadius: '10px' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 0.5 }}>
+        <div className="shimmer-pulse" style={{ height: '12px', width: '70%', borderRadius: '4px' }} />
+        <div className="shimmer-pulse" style={{ height: '8px', width: '40%', borderRadius: '4px' }} />
+      </div>
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flex: 0.3 }}>
+      <div className="shimmer-pulse" style={{ height: '12px', width: '60%', borderRadius: '4px' }} />
+      <div style={{ height: '8px', width: '40%', borderRadius: '4px' }} />
+    </div>
+  </div>
+)
 
 export default function Dashboard() {
   const router = useRouter()
+  
+  // --- ÉTATS APPLICATIFS ---
   const [user, setUser] = useState(null)
   const [tab, setTab] = useState("home")
-  const [showPopup, setShowPopup] = useState(true)
-  const [activities, setActivities] = useState([])
-  const [investments, setInvestments] = useState([]) // Gardé pour l'affichage
+  const [teamTab, setTeamTab] = useState(1)
+  const [showBalance, setShowBalance] = useState(true)
+  const [origin, setOrigin] = useState("")
   
+  // SOLDE ET FINANCES COMPLETS
   const [rechargeBalance, setRechargeBalance] = useState(0)
   const [withdrawBalance, setWithdrawBalance] = useState(0)
   const [totalGains, setTotalGains] = useState(0)
   const [referralEarnings, setReferralEarnings] = useState(0)
-  const [teamStats, setTeamStats] = useState({ lv1: 0, lv2: 0, lv3: 0 })
-  const [userRefID, setUserRefID] = useState("") 
 
+  // LOGIQUE DE PARRAINAGE ET PAGINATION AVANCÉE (POUR 1000+ FILLEULS)
+  const [teamMembers, setTeamMembers] = useState([])
+  const [pageOffset, setPageOffset] = useState(0)
+  const [hasMoreFilleuls, setHasMoreFilleuls] = useState(true)
   const [amounts, setAmounts] = useState({ 1: "", 2: "", 3: "", 4: "", 5: "", 6: "" })
+  const [loading, setLoading] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [isNetworkStable, setIsNetworkStable] = useState(true)
+  const [unreadSupport, setUnreadSupport] = useState(0)
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const phone = localStorage.getItem("phone")
-      if (!phone) return router.push("/auth/login")
-      
-      const { data } = await supabase.from("users").select("*").eq("phone", phone).single()
-      if (data) {
-        if (!data.referral_id) {
-          const newID = generateReferralID()
-          await supabase.from("users").update({ referral_id: newID }).eq("phone", phone)
-          setUserRefID(newID)
-        } else {
-          setUserRefID(data.referral_id)
-        }
+  const ITEMS_PER_PAGE = 25
+  const telegramLink = "https://t.me/+fI28nA4nyGMyZTBk"
+  const currentTotal = useMemo(() => rechargeBalance + withdrawBalance, [rechargeBalance, withdrawBalance])
 
-        setUser(data)
-        setRechargeBalance(data.recharge_balance || 0)
-        setWithdrawBalance(data.withdraw_balance || 0)
-        setTotalGains(data.total_gains || 0)
-        setReferralEarnings(data.referral_earnings || 0)
-        setTeamStats({ lv1: data.count_lv1 || 0, lv2: data.count_lv2 || 0, lv3: data.count_lv3 || 0 })
-
-        // Charger les investissements pour la section ajoutée
-        const { data: invData } = await supabase.from("investments").select("*").eq("user_phone", phone).eq("status", "active")
-        if (invData) setInvestments(invData)
-      }
-      generateFeed()
+  // MÉTRIQUES RÉSEAU CENTRALISÉES PAR SÉCURITÉ SERVEUR
+  const teamStats = useMemo(() => {
+    return {
+      lv1: teamMembers.filter(m => m.level === 1).length,
+      lv2: teamMembers.filter(m => m.level === 2).length,
+      lv3: teamMembers.filter(m => m.level === 3).length,
+      total: teamMembers.length,
+      actifs: teamMembers.filter(m => m.has_invested || (m.commission_generated > 0)).length
     }
-    fetchUser()
-  }, [router])
+  }, [teamMembers])
 
-  const generateFeed = () => {
-    const names = ["Ali", "John", "Mariam", "Kevin", "Sofia", "Eric", "Linda", "Paul", "Emma", "Noah"]
-    setActivities(Array.from({ length: 15 }).map(() => ({
-      id: Math.random(),
-      txt: `${names[Math.floor(Math.random() * names.length)]} vient de retirer ${Math.floor(Math.random() * 90000 + 5000)} FCFA`
-    })))
+  const userRank = useMemo(() => {
+    if(teamStats.total >= 500) return { name: 'LEADER DIAMANT', icon: '💎', color: '#00d4ff' }
+    if(teamStats.total >= 100) return { name: 'AMBASSADEUR OR', icon: '🏆', color: '#ffd700' }
+    if(teamStats.total >= 20) return { name: 'RÉSEAUTEUR ARGENT', icon: '🥈', color: '#c0c0c0' }
+    return { name: 'MEMBRE BRONZE', icon: '🥉', color: '#cd7f32' }
+  }, [teamStats.total])
+
+  const formatCur = (val) => new Intl.NumberFormat('fr-FR').format(Math.floor(val)) + " F"
+
+  // DISPATCH SECURISE DU POPUP SANS RUINER L'HYDRATATION DOM
+  const executeWelcomePopup = () => {
+    if (sessionStorage.getItem("v5_popup_displayed")) return
+    sessionStorage.setItem("v5_popup_displayed", "true")
+
+    Swal.fire({
+      title: '<span style="font-size:15px; font-weight:900; letter-spacing:1px; color:#00c896; text-transform:uppercase;">CANAL COMMUNAUTAIRE</span>',
+      html: `
+        <div style="text-align: center; padding: 4px; box-sizing: border-box;">
+          <p style="font-size: 12px; color: #a3a3a3; line-height: 1.6; margin-bottom: 20px;">
+            Rejoignez l'infrastructure officielle pour suivre en temps réel les validations de retraits et les mises à niveau réseau.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+            <a href="${telegramLink}" target="_blank" style="text-decoration: none; width:100%;">
+              <button style="width: 100%; background: #00c896; color: white; border: none; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; letter-spacing:0.5px; text-transform: uppercase;">OUVRIR TELEGRAM</button>
+            </a>
+            <button id="close-premium-pop" style="background: rgba(255,255,255,0.02); color: #777; border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 10px; font-size: 10px; font-weight: 700; cursor: pointer; text-transform: uppercase;">ACCÉDER AU DASHBOARD</button>
+          </div>
+        </div>
+      `,
+      background: '#0a0a0a',
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      customClass: { popup: 'premium-popup-border' },
+      didOpen: () => {
+        const btn = document.getElementById('close-premium-pop')
+        if (btn) btn.addEventListener('click', () => {
+          if (window.navigator.vibrate) window.navigator.vibrate(8)
+          Swal.close()
+        })
+      }
+    })
   }
 
-  const handleInvest = async (pack, amountStr) => {
-    const amount = parseFloat(amountStr);
-    if (!amount || amount < pack.min || amount > pack.max) return alert("Montant invalide");
-    const totalAvail = rechargeBalance + withdrawBalance;
-    if (totalAvail < amount) return alert("Solde insuffisant !");
+  // DOUBLE COUCHE DE VERIFICATION POUR LA SÉCURITÉ ROUTE ET DONNÉES
+  const bootstrapDashboard = async () => {
+    let targetPhone = localStorage.getItem("phone")
+    if (!targetPhone) {
+      const match = document.cookie.match(/(^| )phone=([^;]+)/)
+      if (match) {
+        targetPhone = decodeURIComponent(match[2])
+        localStorage.setItem("phone", targetPhone)
+      }
+    }
 
-    let newRec = rechargeBalance; let newWit = withdrawBalance;
-    if (newRec >= amount) { newRec -= amount; } else { let reste = amount - newRec; newRec = 0; newWit -= reste; }
+    if (!targetPhone) {
+      router.replace("/register")
+      return
+    }
 
     try {
-      await supabase.from("users").update({ recharge_balance: newRec, withdraw_balance: newWit }).eq("phone", user.phone);
-      await supabase.from("investments").insert([{ user_phone: user.phone, pack_name: pack.name, amount, daily_percent: pack.percent, days_left: pack.days, status: "active" }]);
-      setRechargeBalance(newRec); setWithdrawBalance(newWit); alert("Investissement activé avec succès !");
-      window.location.reload();
-    } catch (err) { alert("Erreur technique."); }
-  };
+      const { data: dbUser, error } = await supabase.from("users").select("*").eq("phone", targetPhone).maybeSingle()
+      if (error || !dbUser || dbUser.status === 'banned') {
+        localStorage.clear()
+        document.cookie = "phone=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;"
+        router.replace("/register")
+        return
+      }
 
-  if (!user) return <div style={{ background: "#0a0a0a", height: "100vh" }}></div>
+      setUser(dbUser)
+      setRechargeBalance(dbUser.recharge_balance || 0)
+      setWithdrawBalance(dbUser.withdraw_balance || 0)
+      setTotalGains(dbUser.total_gains || 0)
+      setReferralEarnings(dbUser.referral_earnings || 0)
+      setIsNetworkStable(true)
+      setPageLoading(false)
 
-  const refUrl = `https://2d-invest.com/register?ref=${userRefID}`;
-  const telegramLink = "https://t.me/akoumath";
+      // Chargement initial sécurisé de la première page de l'équipe
+      fetchTeamSegment(dbUser.user_id_code, 0, true)
+
+      // Extraction des messages supports non-lus
+      const { data: tickets } = await supabase.from("support_tickets").select("id").eq("user_phone", targetPhone).eq("user_read", false).not("admin_reply", "is", null)
+      if (tickets) setUnreadSupport(tickets.length)
+
+    } catch (err) {
+      setIsNetworkStable(false)
+      setPageLoading(false)
+    }
+  }
+
+  // CHARGEMENT PAR CURSEUR/PAGINATION (SUPPORT FLUIDE POUR 1000+ FILLEULS)
+  const fetchTeamSegment = async (userCode, currentOffset, clearPrevious = false) => {
+    if (!userCode) return
+    try {
+      const { data: segment, error } = await supabase
+        .rpc('get_user_team_v2', { p_user_code: userCode })
+        .range(currentOffset, currentOffset + ITEMS_PER_PAGE - 1)
+
+      if (error) throw error
+
+      if (segment) {
+        if (clearPrevious) {
+          setTeamMembers(segment)
+        } else {
+          setTeamMembers(prev => [...prev, ...segment])
+        }
+        setHasMoreFilleuls(segment.length === ITEMS_PER_PAGE)
+      } else {
+        setHasMoreFilleuls(false)
+      }
+    } catch (e) {
+      setIsNetworkStable(false)
+    }
+  }
+
+  const handleLoadMoreFilleuls = () => {
+    if (!hasMoreFilleuls || !user) return
+    const nextOffset = pageOffset + ITEMS_PER_PAGE
+    setPageOffset(nextOffset)
+    fetchTeamSegment(user.user_id_code, nextOffset, false)
+  }
+
+  // INITIALISATION ET ÉCOUTEURS POSTGRES REALTIME TRIPLÉS
+  useEffect(() => {
+    bootstrapDashboard()
+
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin)
+    }
+
+    const livePhone = localStorage.getItem("phone")
+    if (!livePhone) return
+
+    const realtimeChannel = supabase
+      .channel('dashboard-premium-layer')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `phone=eq.${livePhone}` }, payload => {
+        setRechargeBalance(payload.new.recharge_balance)
+        setWithdrawBalance(payload.new.withdraw_balance)
+        setTotalGains(payload.new.total_gains)
+        setReferralEarnings(payload.new.referral_earnings)
+        if (payload.new.status === 'banned') {
+          localStorage.clear()
+          router.push("/register")
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(realtimeChannel) }
+  }, [])
+
+  // Declenchement du pop-up uniquement après la disparition complète du chargement de page
+  useEffect(() => {
+    if (!pageLoading && isNetworkStable) {
+      setTimeout(() => { executeWelcomePopup() }, 400)
+    }
+  }, [pageLoading, isNetworkStable])
+
+  const handleInvestment = async (pack, amountStr) => {
+    if (loading) return
+    const amount = Math.floor(parseFloat(amountStr))
+
+    if (!amount || amount < pack.min || amount > pack.max) {
+      return notifyError("Montant invalide", `Seuil requis pour ${pack.name} : ${pack.min.toLocaleString()} F - ${pack.max.toLocaleString()} F.`)
+    }
+
+    if (currentTotal < amount) {
+      if (window.navigator.vibrate) window.navigator.vibrate(30)
+      Swal.fire({
+        title: '<span style="font-size:13px; font-weight:900; color:#ff4d4d;">SOLDE COMPTE INSUFFISANT</span>',
+        html: `<p style="font-size:11px; color:#999; margin:0;">Il vous manque <b>${(amount - currentTotal).toLocaleString()} F</b> pour activer ce produit. Redirection vers les dépôts ?</p>`,
+        background: '#0a0a0a',
+        showCancelButton: true,
+        confirmButtonText: 'RECHARGER',
+        cancelButtonText: 'ANNULER',
+        confirmButtonColor: '#00c896',
+        cancelButtonColor: 'rgba(255,255,255,0.04)',
+        customClass: { popup: 'premium-popup-border' }
+      }).then(res => { if (res.isConfirmed) router.push("/deposit") })
+      return
+    }
+
+    const confirm = await confirmAction("Validation Requise", `Bloquer ${amount.toLocaleString()} F sur le produit ${pack.name} ?`)
+    if (!confirm) return
+
+    setLoading(true)
+    try {
+      const { error } = await supabase.rpc('process_investment_v5', {
+        p_user_phone: user.phone,
+        p_amount: amount,
+        p_pack_name: pack.name,
+        p_days_left: pack.days
+      })
+      if (error) throw error
+
+      if (window.navigator.vibrate) window.navigator.vibrate([10, 20, 10])
+      await notifySuccess("Achat Validé", "Votre pack serveur est entré en allocation de rendement.")
+      setAmounts({ ...amounts, [pack.id]: "" })
+      bootstrapDashboard()
+    } catch (err) {
+      notifyError("Action Interrompue", err.message || "Erreur d'allocation.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (pageLoading) return <div style={{ background: "#050505", height: "100vh", width: "100vw" }} />
 
   return (
-    <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "white", fontFamily: "sans-serif", paddingBottom: 90 }}>
-
-      {showPopup && (
-        <div style={popupOverlay}>
-          <div style={popupBox}>
-            <div style={{ fontSize: "40px" }}>🚀</div>
-            <h2 style={{margin:'15px 0'}}>Bienvenue sur 2D INVEST</h2>
-            <p style={{fontSize:'12px', opacity:0.7, marginBottom:'20px'}}>La plateforme N°1 de valorisation de produits digitaux.</p>
-            <button onClick={() => setShowPopup(false)} style={enterBtn}>Accéder au Tableau de Bord</button>
-          </div>
+    <div className="premium-app-viewport">
+      
+      {/* HEADER FIXE STRICT — PROTECTION DEBORDEMENT */}
+      <header className="premium-app-header">
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div className="pulse-green-dot" />
+          <span style={{ fontSize: "9px", fontWeight: '900', color: '#00c896', letterSpacing: '0.5px' }}>SYSTEM V5 PREMIUM</span>
         </div>
-      )}
+        {user && <span style={{ fontSize: "10px", fontWeight: "900", opacity: 0.8 }}>ID SÉCURISÉ : {user.user_id_code}</span>}
+      </header>
 
-      {/* --- ACCUEIL --- */}
-      {tab === "home" && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", animation: "fadeIn 0.5s ease" }}>
-          <div style={headerBar}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={statusDot}></div><span style={{ fontSize: "11px", fontWeight:'bold' }}>SÉCURISÉ</span>
-            </div>
-            <span style={{ fontSize: "12px", opacity: 0.6 }}>ID: {userRefID}</span>
+      {/* ZONE CENTRALE EN DEFILEMENT INDEPENDANT INTERNE */}
+      <main className="premium-app-scroller">
+        
+        {/* RECOUVREMENT EN CAS DE PANNE DE RESEAU (USER FRIENDLY SPIN) */}
+        {!isNetworkStable && (
+          <div style={{ background: 'rgba(255,59,48,0.06)', border: '1px solid #ff4d4d30', borderRadius: '14px', padding: '12px', margin: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#ff4d4d' }}>⚠️ Flux réseau instable. Synchronisation...</span>
+            <button onClick={() => bootstrapDashboard()} style={{ background: '#ff4d4d', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: '900', cursor: 'pointer' }}>FORCER</button>
           </div>
-          <div style={mainBalanceCard}>
-            <p style={{ fontSize: "13px", opacity: 0.7 }}>Capital Total</p>
-            <h1 style={{ fontSize: "36px", color: "#00c896", fontWeight:'bold', margin:'10px 0' }}>{(rechargeBalance + withdrawBalance).toLocaleString()} F</h1>
-            <div style={{height:'2px', width:'40px', background:'#00c896', margin:'0 auto'}}></div>
-          </div>
-          <div style={{ display: "flex", width: "95%", gap: "10px", marginBottom: "25px" }}>
-            {/* CHANGÉ ICI : SOLDE DE RECHARGE ET RETRAIT */}
-            <div style={miniCard}><span style={miniLabel}>Solde de recharge</span><span style={miniValue}>{rechargeBalance.toLocaleString()} F</span></div>
-            <div style={miniCard}><span style={miniLabel}>Solde de retrait</span><span style={miniValue}>{withdrawBalance.toLocaleString()} F</span></div>
-          </div>
-          <div style={actionGrid}>
-            <ActionIcon icon="📥" text="Recharger" color="#00c896" click={() => router.push("/deposit")} />
-            <ActionIcon icon="📤" text="Retirer" color="#ff4d4d" click={() => router.push("/withdraw")} />
-            <ActionIcon icon="🛎️" text="Support" color="#0088cc" click={() => window.open(telegramLink)} />
-            <ActionIcon icon="🏦" text="Portefeuille" color="#ffd700" click={() => router.push("/settings/wallet")} />
-          </div>
+        )}
 
-          {/* AJOUTÉ ICI : SECTION INVESTISSEMENT */}
-          <div style={{width:'92%', marginBottom:'20px'}}>
-             <h3 style={{fontSize:'14px', color:'#00c896', marginBottom:'10px'}}>Mes investissements actifs</h3>
-             {investments.length > 0 ? investments.map((inv, idx) => (
-               <div key={idx} style={{background:'#111', padding:'15px', borderRadius:'15px', border:'1px solid #222', marginBottom:'10px', display:'flex', justifyContent:'space-between'}}>
-                 <span>{inv.pack_name}</span>
-                 <span style={{color:'#00c896'}}>+{inv.daily_percent}% / j</span>
-               </div>
-             )) : <p style={{fontSize:'12px', opacity:0.5}}>Aucun pack actif</p>}
-          </div>
-
-          <div style={bannerContainer}><img src="https://media.beehiiv.com/www/winter-release/features/digital-products/og-digital-products.png" style={heroImg} /></div>
-          <div style={feedContainer}><div style={feedBox}><div style={feedScroll}>{activities.concat(activities).map((a, i) => (<span key={i} style={activityItem}>⚡ {a.txt}</span>))}</div></div></div>
-        </div>
-      )}
-
-      {/* --- INVESTIR (CODE ORIGINAL RESTAURÉ) --- */}
-      {tab === "invest" && (
-        <div style={{ padding: 20, animation: "fadeIn 0.5s ease" }}>
-          <div style={premiumHeaderInvest}>
-            <div style={investStatCard}>
-                <span style={investStatLabel}>MES GAINS</span>
-                <span style={investStatValue}>+{totalGains.toLocaleString()} F</span>
-            </div>
-            <div style={{width:'1px', background:'#222', height:'40px'}}></div>
-            <div style={investStatCard}>
-                <span style={investStatLabel}>DISPONIBLE</span>
-                <span style={{...investStatValue, color:'#00c896'}}>{(rechargeBalance + withdrawBalance).toLocaleString()} F</span>
-            </div>
-          </div>
-          
-          {packsData.map(p => {
-            const val = parseFloat(amounts[p.id]) || 0;
-            const isValide = (val >= p.min && val <= p.max);
-            const dailyReturn = (val * p.percent) / 100;
-            const totalReturn = dailyReturn * p.days;
-
-            return (
-              <div key={p.id} style={{ ...productBox, borderLeft: `4px solid ${p.color}` }}>
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <h4 style={{ color: p.color, margin: 0, fontSize:'18px' }}>{p.name}</h4>
-                    <span style={{fontSize:'12px', background:`${p.color}20`, color:p.color, padding:'4px 10px', borderRadius:'10px', fontWeight:'bold'}}>{p.percent}% / jour</span>
-                </div>
-                
-                <input type="number" placeholder={`Min: ${p.min} F - Max: ${p.max} F`} value={amounts[p.id]} onChange={(e) => setAmounts({ ...amounts, [p.id]: e.target.value })} style={packInputStyle} />
-                
-                {val > 0 && (
-                  <div style={calcGrid}>
-                    <div style={calcItem}><p>Retour Quotidien</p><b>{dailyReturn.toLocaleString()} F</b></div>
-                    <div style={calcItem}><p>Fin de Cycle ({p.days}j)</p><b>{totalReturn.toLocaleString()} F</b></div>
-                  </div>
-                )}
-
-                <button onClick={() => handleInvest(p, amounts[p.id])} style={{ ...investButton, background: isValide ? p.color : '#222' }}>Activer l'investissement</button>
+        {/* TAB 1 : ACCUEIL */}
+        {tab === "home" && (
+          <div className="tab-fade-in" style={{ padding: '0 0 16px 0' }}>
+            <div className="premium-card-balance">
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', opacity: 0.6 }}>
+                <span style={{ fontSize: "9px", letterSpacing: '1px', fontWeight: '900' }}>VALEUR TOTAL DU PORTFEUILLE</span>
+                <span onClick={() => setShowBalance(!showBalance)} style={{ cursor: 'pointer', fontSize: '12px' }}>{showBalance ? "👁️" : "🙈"}</span>
               </div>
-            )
-          })}
-        </div>
-      )}
+              <h1 style={{ fontSize: "30px", color: "#00c896", fontWeight: '950', margin: '8px 0 0 0', letterSpacing: '-0.5px' }}>
+                {showBalance ? formatCur(currentTotal) : "•••••• F"}
+              </h1>
+            </div>
 
-      {/* --- ÉQUIPE (CODE ORIGINAL RESTAURÉ) --- */}
-      {tab === "team" && (
-        <div style={{ padding: 20, animation: "fadeIn 0.5s ease" }}>
-          <div style={teamMainCard}>
-            <div style={{fontSize: '12px', opacity: 0.8, color: '#FFD700', letterSpacing:'1px'}}>COMMISSIONS TOTALES</div>
-            <div style={{fontSize: '36px', fontWeight: 'bold', margin: '10px 0'}}>{referralEarnings.toLocaleString()} F</div>
-            <div style={{fontSize: '10px', background: 'rgba(255,215,0,0.1)', padding: '5px 15px', borderRadius: '20px', display: 'inline-block', color:'#FFD700'}}>Fonds retirables sans délai</div>
-          </div>
-          <div style={inviteBox}>
-             <h4 style={{margin: '0 0 15px 0', fontSize: '14px', color:'#00c896'}}>Parrainage & Récompenses</h4>
-             <div style={copyContainer}>
-                <input readOnly value={refUrl} style={copyInputStyleRef} />
-                <button onClick={() => {navigator.clipboard.writeText(refUrl); alert("Lien copié !")}} style={copyBtnStyle}>COPIER</button>
-             </div>
-             <button onClick={() => window.open(`https://wa.me/?text=Gagne des revenus journaliers avec 2D INVEST ! Inscris-toi ici : ${refUrl}`)} style={whatsappBtn}>📢 PARTAGER SUR WHATSAPP</button>
-          </div>
-          <div style={levelGrid}>
-            <div style={{...levelCard, background: 'linear-gradient(to bottom, #111, #0a0a0a)'}}><span style={levelTitle}>NIVEAU 1</span><span style={{...levelPercent, color:'#00c896'}}>20%</span><div style={levelStat}>{teamStats.lv1} 👥</div></div>
-            <div style={{...levelCard, background: 'linear-gradient(to bottom, #111, #0a0a0a)'}}><span style={levelTitle}>NIVEAU 2</span><span style={{...levelPercent, color:'#00d4ff'}}>3%</span><div style={levelStat}>{teamStats.lv2} 👥</div></div>
-            <div style={{...levelCard, background: 'linear-gradient(to bottom, #111, #0a0a0a)'}}><span style={levelTitle}>NIVEAU 3</span><span style={{...levelPercent, color:'#ffd700'}}>2%</span><div style={levelStat}>{teamStats.lv3} 👥</div></div>
-          </div>
-        </div>
-      )}
+            <div style={{ display: 'flex', gap: '10px', padding: '0 16px', marginBottom: '20px' }}>
+              <div className="premium-mini-card">
+                <span className="mini-card-label">SOLDE DE RECHARGE</span>
+                <span className="mini-card-value">{showBalance ? formatCur(rechargeBalance) : "•••• F"}</span>
+              </div>
+              <div className="premium-mini-card">
+                <span className="mini-card-label">RETRAIT DISPONIBLE</span>
+                <span className="mini-card-value" style={{ color: '#00c896' }}>{showBalance ? formatCur(withdrawBalance) : "•••• F"}</span>
+              </div>
+            </div>
 
-      {/* --- COMPTE (CODE ORIGINAL RESTAURÉ) --- */}
-      {tab === "settings" && (
-        <div style={{ padding: 20, animation: "fadeIn 0.5s ease" }}>
-          <div style={{ textAlign: "center", marginBottom: 40 }}>
-            <div style={avatar}>👤</div>
-            <h3 style={{fontSize:'22px', marginTop:'15px'}}>{user.phone}</h3>
-            <span style={{fontSize:'10px', color:'#00c896', background:'#00c89615', padding:'3px 10px', borderRadius:'10px'}}>ID Unique: {userRefID}</span>
-          </div>
+            <div style={{ display: "flex", padding: "0 16px 20px 16px", justifyContent: "space-between", gap: "8px" }}>
+              <ActionIcon icon="📥" text="Dépôt" color="#00c896" click={() => router.push("/deposit")} />
+              <ActionIcon icon="📤" text="Retrait" color="#ff4d4d" click={() => router.push("/withdraw")} />
+              <ActionIcon icon="🕒" text="Historique" color="#ff9800" click={() => router.push("/history")} />
+              <ActionIcon icon="📦" text="Mes Packs" color="#a155ff" click={() => router.push("/commandes")} />
+              <ActionIcon icon="🛎️" text="Support" color="#0088cc" badge={unreadSupport} click={() => setTab("settings")} />
+            </div>
 
-          <div style={horizontalIconRow}>
-             <div style={iconBoxCompte} onClick={() => router.push("/settings/wallet")}>
-                <div style={{...iconCircle, color: '#ffd700', background: '#ffd70015'}}>🏦</div>
-                <span>Portefeuille</span>
-             </div>
-             <div style={iconBoxCompte} onClick={() => window.open(telegramLink)}>
-                <div style={{...iconCircle, color: '#0088cc', background: '#0088cc15'}}>✈️</div>
-                <span>Telegram</span>
-             </div>
-             <div style={iconBoxCompte} onClick={() => { localStorage.clear(); router.push("/auth/login") }}>
-                <div style={{...iconCircle, color: '#ff4d4d', background: '#ff4d4d15'}}>🚪</div>
-                <span>Sortie</span>
-             </div>
-          </div>
+            <div style={{ padding: '0 16px', marginBottom: '20px' }}>
+              <div style={{ width: '100%', borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border-color)', height: '110px', position: 'relative' }}>
+                <img src="https://media.beehiiv.com/www/winter-release/features/digital-products/og-digital-products.png" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="banner" />
+              </div>
+            </div>
 
-          <div style={aboutCard}>
-             <h4 style={{color: '#00c896', marginBottom: '10px', display:'flex', alignItems:'center', gap:'8px'}}>📦 Expertise Digitale</h4>
-             <p style={{fontSize: '12px', lineHeight: '1.6', opacity: 0.8, textAlign:'justify'}}>
-                2D INVEST est une plateforme de haute technologie spécialisée dans la monétisation de <b>produits digitaux exclusifs</b>. 
-                Nous convertissons vos investissements en puissants leviers commerciaux pour la vente de formations professionnelles, 
-                de signaux de trading haute précision et de ressources numériques rares. 
-                Notre modèle garantit une distribution équitable des profits générés par l'économie du futur.
-             </p>
+            <div className="live-feed-box">
+              <div className="live-feed-scroll">
+                {[...feedActivities, ...feedActivities].map((act, idx) => (
+                  <span key={idx} style={{ marginRight: "40px", fontSize: "10.5px", color: '#00c896', fontWeight: '700', display: 'inline-block' }}>
+                    <span style={{ background: '#00c89615', padding: '2px 5px', borderRadius: '6px', marginRight: '6px', fontSize: '8px', fontWeight: '900' }}>LIVE</span>
+                    {act.txt}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
-          <p style={{textAlign:'center', fontSize:'9px', opacity:0.3, marginTop:'30px'}}>SECURE PROTOCOL • 2D INVEST v3.0</p>
-        </div>
-      )}
+        )}
 
-      {/* BARRE DE NAVIGATION BASSE */}
-      <div style={bottomNav}>
+        {/* TAB 2 : INVESTIR */}
+        {tab === "invest" && (
+          <div className="tab-fade-in" style={{ padding: "16px" }}>
+            <div className="invest-stats-header">
+              <div style={{ flex: 1 }}>
+                <span className="mini-card-label">PORTEFEUILLE DISPO</span>
+                <span style={{ fontSize: '14px', fontWeight: '900', color: '#00c896' }}>{formatCur(currentTotal)}</span>
+              </div>
+              <div style={{ flex: 1, borderLeft: '1px solid var(--border-color)', paddingLeft: '12px' }}>
+                <span className="mini-card-label">GAINS TOUT TEMPS</span>
+                <span style={{ fontSize: '14px', fontWeight: '900' }}>{formatCur(totalGains)}</span>
+              </div>
+            </div>
+
+            {packsData.map(p => {
+              const val = Math.floor(parseFloat(amounts[p.id])) || 0
+              const isRangeValide = (val >= p.min && val <= p.max)
+              const isSoldeSuffisant = (val <= currentTotal)
+              const dynamicColor = isRangeValide ? (isSoldeSuffisant ? p.color : '#ff4d4d') : 'var(--border-color)'
+
+              return (
+                <div key={p.id} className="premium-pack-card">
+                  {p.badge && <div className="pack-badge-rotate" style={{ background: p.color }}>{p.badge}</div>}
+                  <div style={{ display: 'flex', minHeight: '130px' }}>
+                    <div style={{ width: '22%', background: 'rgba(255,255,255,0.01)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
+                      <img src={p.logo} style={{ width: '32px', height: 'auto', opacity: 0.8 }} alt="pack-logo" />
+                    </div>
+                    <div style={{ width: '78%', padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '900', color: p.color }}>{p.name}</h4>
+                        <span style={{ fontSize: '12px', fontWeight: '950', color: p.color }}>{p.percent}% / JOUR</span>
+                      </div>
+
+                      <div style={{ margin: '8px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.5, marginBottom: '4px' }}>
+                          <span>Seuil: {p.min.toLocaleString()} F - {p.max.toLocaleString()} F</span>
+                          <span>Durée: {p.days} Jours</span>
+                        </div>
+                        <input type="number" placeholder="Saisir montant FCFA" value={amounts[p.id]} onChange={e => setAmounts({ ...amounts, [p.id]: e.target.value })} className="premium-input-field" />
+                        
+                        {val > 0 && (
+                          <div style={{ marginTop: '6px', padding: '6px 8px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', fontSize: '9.5px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gain / jour :</span> <b style={{ color: '#00c896' }}>+{formatCur(val * p.percent / 100)}</b></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Gain Net Terme :</span> <b style={{ color: p.color }}>+{formatCur((val * p.percent / 100) * p.days)}</b></div>
+                          </div>
+                        )}
+                      </div>
+
+                      <button onClick={() => handleInvestment(p, amounts[p.id])} disabled={loading || !amounts[p.id]} className="premium-submit-btn" style={{ background: dynamicColor, color: isRangeValide && isSoldeSuffisant ? '#000' : '#fff' }}>
+                        {!amounts[p.id] ? "ENTRER UN MONTANT" : (!isRangeValide ? "LIMITATION REQUIS HORS COMPTE" : (!isSoldeSuffisant ? "SOLDE INSUFFISANT" : "INITIALISER L'INVESTISSEMENT"))}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* TAB 3 : EQUIPE AVEC CHARGEMENT PROGRESSIF DES INFRASTRUCTURES DE PARRAINAGE */}
+        {tab === "team" && (
+          <div className="tab-fade-in" style={{ padding: "16px" }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+              <div className="premium-mini-card" style={{ textAlign: 'center', padding: '12px 6px' }}>
+                <span className="mini-card-label">RÉSEAU GLOBAL</span>
+                <span style={{ fontSize: '16px', fontWeight: '950', marginTop: '2px', display: 'block' }}>{teamStats.total} 👥</span>
+              </div>
+              <div className="premium-mini-card" style={{ textAlign: 'center', padding: '12px 6px' }}>
+                <span className="mini-card-label">FILLEULS ACTIFS</span>
+                <span style={{ fontSize: '16px', fontWeight: '950', color: '#00c896', marginTop: '2px', display: 'block' }}>{teamStats.actifs} 🔥</span>
+              </div>
+            </div>
+
+            <div className="rank-central-card" style={{ border: `1px solid ${userRank.color}25` }}>
+              <div style={{ position: 'absolute', top: '-9px', left: '50%', transform: 'translateX(-50%)', background: userRank.color, color: '#000', padding: '2px 10px', borderRadius: '8px', fontSize: '8px', fontWeight: '950', letterSpacing: '0.5px' }}>
+                {userRank.name} {userRank.icon}
+              </div>
+              <span className="mini-card-label" style={{ opacity: 0.5, marginTop: '4px' }}>COMMISSIONS DE RÉSEAU ENCAISSÉES</span>
+              <h2 style={{ fontSize: '26px', fontWeight: '950', color: '#00c896', margin: '4px 0' }}>{formatCur(referralEarnings)}</h2>
+            </div>
+
+            <div className="premium-link-box">
+              <span style={{ fontSize: '11px', fontWeight: '900', color: '#00c896', display: 'block', marginBottom: '8px' }}>LIEN D'AFFILIATION UNIQUE V5</span>
+              <input readOnly value={`${origin}/register?ref=${user?.user_id_code || ''}`} className="premium-input-field" style={{ fontSize: '10px', opacity: 0.7, padding: '10px' }} />
+              <button onClick={() => {
+                navigator.clipboard.writeText(`${origin}/register?ref=${user?.user_id_code || ''}`)
+                if (window.navigator.vibrate) window.navigator.vibrate(15)
+                Swal.fire({ toast: true, position: 'bottom', icon: 'success', title: 'Lien copié !', showConfirmButton: false, timer: 1500, background: '#111', color: '#00c896' })
+              }} className="premium-submit-btn" style={{ background: '#00c896', color: '#000', marginTop: '8px', height: '36px' }}>
+                COPIER LE LIEN D'INVITATION
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+              {[1, 2, 3].map(lvl => (
+                <div key={lvl} onClick={() => setTeamTab(lvl)} className="level-filter-tab" style={{
+                  flex: 1, padding: '10px 4px', borderRadius: '12px', border: `1px solid ${teamTab === lvl ? '#00c896' : 'var(--border-color)'}`,
+                  background: teamTab === lvl ? 'rgba(0,200,150,0.05)' : 'transparent', textAlign: 'center', cursor: 'pointer'
+                }}>
+                  <span style={{ fontSize: '8px', opacity: 0.5, display: 'block', fontWeight: '900' }}>NIVEAU {lvl}</span>
+                  <span style={{ fontSize: '13px', fontWeight: '950', color: lvl === 1 ? '#00c896' : lvl === 2 ? '#00d4ff' : '#ffd700' }}>
+                    {lvl === 1 ? '20%' : lvl === 2 ? '3%' : '2%'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* SEGMENTATION DES RENDERINGS DES STRUCTURES DE FILLEULS */}
+            <div style={{ background: 'var(--card-bg)', borderRadius: '18px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+              {teamMembers.filter(m => m.level === teamTab).length > 0 ? (
+                <div>
+                  {teamMembers.filter(m => m.level === teamTab).map((filleul, index) => {
+                    const isActif = filleul.has_invested || (filleul.commission_generated > 0)
+                    return (
+                      <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid var(--border-color)', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>👤</div>
+                          <div>
+                            <span style={{ fontSize: '12px', fontWeight: '900', display: 'block' }}>{filleul.phone?.substring(0, 6)}***</span>
+                            <span style={{ fontSize: '8.5px', fontWeight: '900', color: isActif ? '#00c896' : '#ff4d4d' }}>● {isActif ? 'ACTIF' : 'INACTIF'}</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '11px', color: '#00c896', fontWeight: '900', display: 'block' }}>+{formatCur(filleul.commission_generated || 0)}</span>
+                          <span style={{ fontSize: '8px', opacity: 0.4 }}>{filleul.created_at ? new Date(filleul.created_at).toLocaleDateString('fr-FR') : '--/--/--'}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  
+                  {hasMoreFilleuls && (
+                    <button onClick={handleLoadMoreFilleuls} className="premium-submit-btn" style={{ background: 'transparent', border: 'none', color: '#00c896', height: '40px', fontWeight: '900', fontSize: '10px' }}>
+                      CHARGER LES SUIVANTS
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div style={{ padding: '30px 10px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '11px', opacity: 0.4 }}>Aucune donnée de parrainage sur ce niveau.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4 : COMPTE */}
+        {tab === "settings" && (
+          <div className="tab-fade-in" style={{ padding: "16px" }}>
+            <div className="account-top-profile">
+              <div className="avatar-frame">👤</div>
+              <h3 style={{ fontSize: '16px', margin: '10px 0 4px 0', fontWeight: '950' }}>{user?.phone}</h3>
+              <span style={{ fontSize: '10px', color: '#00c896', background: 'rgba(0,200,150,0.06)', padding: '3px 12px', borderRadius: '8px', fontWeight: '900', border: '1px solid rgba(0,200,150,0.1)' }}>
+                TOKEN SECURE: {user?.user_id_code}
+              </span>
+            </div>
+
+            <div className="premium-link-box" style={{ padding: '14px' }}>
+              <h4 style={{ fontSize: '9px', opacity: 0.4, letterSpacing: '0.5px', margin: '0 0 12px 0', fontWeight: '900', textTransform: 'uppercase' }}>PARAMÈTRES SÉCURITÉS INFRASTRUCTURE</h4>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', borderBottom: '1px solid var(--border-color)' }}>
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: '800', display: 'block' }}>Vérification KYC Serveur</span>
+                  <span style={{ fontSize: '8.5px', opacity: 0.4 }}>Passerelle Afrique de l'Ouest validée</span>
+                </div>
+                <span style={{ fontSize: '8px', fontWeight: '900', color: '#00c896', background: 'rgba(0,200,150,0.08)', padding: '3px 8px', borderRadius: '6px' }}>ACTIF ✅</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: '800', display: 'block' }}>Chiffrement Cryptographique</span>
+                  <span style={{ fontSize: '8.5px', opacity: 0.4 }}>Protocole SSL Terminé v5</span>
+                </div>
+                <span style={{ fontSize: '8.5px', opacity: 0.6, fontWeight: '800' }}>AES-256</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="account-action-node" onClick={() => router.push("/settings/wallet")}>
+                <span style={{ fontSize: '16px' }}>🏦</span>
+                <span style={{ fontSize: '9.5px', fontWeight: '900' }}>Canaux Retrait</span>
+              </div>
+              <div className="account-action-node" style={{ position: 'relative' }} onClick={() => router.push("/support")}>
+                <span style={{ fontSize: '16px' }}>🛎️</span>
+                <span style={{ fontSize: '9.5px', fontWeight: '900' }}>Support Tickets</span>
+                {unreadSupport > 0 && <div className="dot-badge-orange">{unreadSupport}</div>}
+              </div>
+              <div className="account-action-node" onClick={async () => {
+                const out = await confirmAction("Fermeture de session", "Voulez-vous rompre le jeton d'authentification ?")
+                if (out) {
+                  localStorage.clear()
+                  document.cookie = "phone=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;"
+                  router.push("/register")
+                }
+              }}>
+                <span style={{ fontSize: '16px' }}>🚪</span>
+                <span style={{ fontSize: '9.5px', fontWeight: '900', color: '#ff4d4d' }}>Déconnexion</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* FOOTER BARRE DE NAVIGATION FIXE ABSOLUE — SANS DROIT AU DÉBORDEMENT */}
+      <nav className="premium-app-navigation">
         <NavBtn icon="🏠" label="Accueil" active={tab === "home"} click={() => setTab("home")} />
         <NavBtn icon="🚀" label="Investir" active={tab === "invest"} click={() => setTab("invest")} />
         <NavBtn icon="👥" label="Équipe" active={tab === "team"} click={() => setTab("team")} />
         <NavBtn icon="👤" label="Compte" active={tab === "settings"} click={() => setTab("settings")} />
-      </div>
+      </nav>
 
-      <style jsx global>{`
-        @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
+      {/* EMPILEMENT DE COMPILATION DES COMPOSANTS GRAPHES CSS STRICTS ANTI-DEBORDEMENTS */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        :root {
+          --bg-color: #050505;
+          --card-bg: #0b0b0b;
+          --border-color: #121212;
+          --text-main: #ffffff;
+        }
+        
+        * {
+          box-sizing: border-box !important;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+          background-color: var(--bg-color) !important;
+          color: var(--text-main) !important;
+          margin: 0;
+          padding: 0;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .premium-app-viewport {
+          width: 100vw;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .premium-app-header {
+          height: 54px;
+          width: 100%;
+          border-bottom: 1px solid var(--border-color);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 16px;
+          background: var(--card-bg);
+          flex-shrink: 0;
+        }
+
+        .premium-app-scroller {
+          flex: 1;
+          overflow-y: auto;
+          overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 20px;
+        }
+
+        .premium-app-navigation {
+          height: 74px;
+          width: 100%;
+          border-top: 1px solid var(--border-color);
+          background: var(--card-bg);
+          display: flex;
+          justify-content: space-around;
+          align-items: center;
+          padding: 0 6px;
+          flex-shrink: 0;
+        }
+
+        .premium-card-balance {
+          width: calc(100% - 32px);
+          margin: 16px auto;
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 22px;
+          padding: 22px 16px;
+          text-align: center;
+        }
+
+        .premium-mini-card {
+          flex: 1;
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 16px;
+          padding: 12px 10px;
+        }
+
+        .mini-card-label {
+          font-size: 8px;
+          font-weight: 900;
+          color: #00c896;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          display: block;
+        }
+
+        .mini-card-value {
+          font-size: 13.5px;
+          font-weight: 900;
+          display: block;
+          margin-top: 2px;
+        }
+
+        .premium-input-field {
+          width: 100%;
+          background: rgba(0,0,0,0.3);
+          border: 1px solid var(--border-color);
+          border-radius: 10px;
+          padding: 8px 12px;
+          color: white;
+          outline: none;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .premium-submit-btn {
+          width: 100%;
+          height: 32px;
+          border: none;
+          border-radius: 9px;
+          font-size: 9.5px;
+          font-weight: 900;
+          cursor: pointer;
+          letter-spacing: 0.3px;
+          transition: opacity 0.2s;
+        }
+
+        .premium-submit-btn:active {
+          opacity: 0.8;
+        }
+
+        .premium-pack-card {
+          width: 100%;
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 20px;
+          margin-bottom: 14px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .pack-badge-rotate {
+          position: absolute;
+          top: 8px;
+          right: -26px;
+          padding: 3px 24px;
+          transform: rotate(45deg);
+          font-size: 7.5px;
+          font-weight: 900;
+          color: black;
+        }
+
+        .invest-stats-header {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          padding: 12px;
+          border-radius: 16px;
+          display: flex;
+          margin-bottom: 16px;
+          align-items: center;
+        }
+
+        .rank-central-card {
+          background: var(--card-bg);
+          padding: 20px 12px;
+          border-radius: 20px;
+          text-align: center;
+          margin-bottom: 16px;
+          position: relative;
+        }
+
+        .premium-link-box {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          padding: 16px 12px;
+          border-radius: 20px;
+          margin-bottom: 16px;
+        }
+
+        .account-top-profile {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          padding: 24px 12px;
+          border-radius: 22px;
+          text-align: center;
+          margin-bottom: 14px;
+        }
+
+        .avatar-frame {
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          border: 2px solid #00c896;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          margin: 0 auto;
+          background: #000;
+        }
+
+        .account-action-node {
+          flex: 1;
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 16px;
+          padding: 12px 4px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+        }
+
+        .live-feed-box {
+          background: var(--card-bg);
+          border-top: 1px solid var(--border-color);
+          border-bottom: 1px solid var(--border-color);
+          padding: 10px 0;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+
+        .live-feed-scroll {
+          display: inline-block;
+          animation: loop-feed 24s linear infinite;
+        }
+
+        .pulse-green-dot {
+          width: 6px;
+          height: 6px;
+          background: #00c896;
+          border-radius: 50%;
+          box-shadow: 0 0 8px #00c896;
+        }
+
+        .premium-popup-border {
+          border-radius: 24px !important;
+          border: 1px solid rgba(255,255,255,0.05) !important;
+        }
+
+        .shimmer-pulse {
+          background: linear-gradient(90deg, #121212 25%, #1a1a1a 50%, #121212 75%);
+          background-size: 200% 100%;
+          animation: shimmer-anim 1.4s infinite;
+        }
+
+        .dot-badge-orange {
+          position: absolute;
+          top: 6px;
+          right: 6px;
+          background: #ff9800;
+          color: black;
+          font-size: 8px;
+          font-weight: 900;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        @keyframes loop-feed {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+
+        @keyframes shimmer-anim {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        @keyframes tab-fade {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tab-fade-in {
+          animation: tab-fade 0.2s ease-out forwards;
+        }
+
+        .premium-nav-btn {
+          touch-action: manipulation;
+        }
+      `}} />
     </div>
   )
 }
-
-/* --- TOUS TES STYLES ORIGINAUX SONT ICI --- */
-const ActionIcon = ({ icon, text, color, click }) => (
-  <div onClick={click} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", flex: 1, cursor:'pointer' }}>
-    <div style={{ width: "52px", height: "52px", borderRadius: "18px", backgroundColor: `${color}15`, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", border: `1px solid ${color}30` }}>{icon}</div>
-    <span style={{ fontSize: "11px", fontWeight: "600" }}>{text}</span>
-  </div>
-)
-const NavBtn = ({ icon, label, active, click }) => (
-  <button onClick={click} style={{ flex: 1, background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", color: active ? "#00c896" : "#555", transition:'0.3s' }}>
-    <span style={{ fontSize: "26px" }}>{icon}</span>
-    <span style={{ fontSize: "10px", fontWeight: active ? 'bold' : 'normal' }}>{label}</span>
-  </button>
-)
-const popupOverlay = { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.95)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }
-const popupBox = { background: "#111", padding: "40px 20px", borderRadius: "30px", textAlign: "center", width: "85%", border:'1px solid #222' }
-const enterBtn = { width: "100%", padding: "15px", background: "#00c896", color: "white", border: "none", borderRadius: "15px", fontWeight: "bold", fontSize:'15px' }
-const headerBar = { width: "90%", display: "flex", justifyContent: "space-between", padding: "20px 0" }
-const statusDot = { width: "8px", height: "8px", background: "#00c896", borderRadius: "50%", boxShadow:'0 0 10px #00c896' }
-const mainBalanceCard = { width: "92%", background: "linear-gradient(135deg, #111 0%, #050505 100%)", padding: "35px 20px", borderRadius: "28px", border: "1px solid #222", marginBottom: "20px", textAlign:'center' }
-const miniCard = { flex: 1, background: "#111", padding: "15px", borderRadius: "20px", border: "1px solid #222" }
-const miniLabel = { fontSize: "10px", opacity: 0.6, color: "#00c896", display: "block", marginBottom:'5px' }
-const miniValue = { fontSize: "14px", fontWeight: "bold" }
-const actionGrid = { display: "flex", width: "100%", padding: "10px 0 25px 0" }
-const bannerContainer = { width: "92%", borderRadius: "24px", overflow: "hidden", border:'1px solid #222' }
-const heroImg = { width: "100%", display: "block", opacity: 0.9 }
-const feedContainer = { width: "100%", marginTop: "20px" }
-const feedBox = { background: "rgba(0, 200, 150, 0.05)", padding: "14px 0", overflow: "hidden", whiteSpace: "nowrap", borderTop:'1px solid #111', borderBottom:'1px solid #111' }
-const feedScroll = { display: "inline-block", animation: "scroll 45s linear infinite" }
-const activityItem = { marginRight: "50px", fontSize: "12px", color:'#00c896' }
-const premiumHeaderInvest = { display: "flex", justifyContent: "space-between", alignItems:'center', marginBottom: 25, background: "#111", padding: "20px", borderRadius: 24, border:'1px solid #222' }
-const investStatCard = { display:'flex', flexDirection:'column', flex:1, textAlign:'center' }
-const investStatLabel = { fontSize:'9px', color:'#666', marginBottom:'8px', letterSpacing:'1.5px' }
-const investStatValue = { fontSize:'18px', fontWeight:'bold' }
-const productBox = { background: "#111", padding: "20px", borderRadius: "24px", marginBottom: "20px", border: "1px solid #222" }
-const packInputStyle = { width: '100%', background: '#000', border: '1px solid #222', color: '#fff', padding: '14px', borderRadius: '15px', marginTop: 15, outline:'none' }
-const calcGrid = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginTop:'15px' }
-const calcItem = { background:'#000', padding:'10px', borderRadius:'12px', border:'1px solid #111', textAlign:'center' }
-const investButton = { marginTop: "15px", width: "100%", padding: "15px", border: "none", borderRadius: "15px", color: "white", fontWeight: "bold", fontSize:'14px', cursor:'pointer' }
-const teamMainCard = { background: 'linear-gradient(135deg, #111 0%, #000 100%)', padding: '35px 20px', borderRadius: '28px', textAlign: 'center', border: '1px solid #222', marginBottom: '25px' }
-const inviteBox = { background: '#111', padding: '22px', borderRadius: '24px', border: '1px solid #222', marginBottom: '25px' }
-const copyContainer = { display: 'flex', background: '#000', borderRadius: '15px', overflow: 'hidden', border: '1px solid #222', marginBottom: '15px' }
-const copyInputStyleRef = { flex: 1, background: 'none', border: 'none', color: '#888', padding: '14px', fontSize: '11px' }
-const copyBtnStyle = { background: '#00c896', border: 'none', color: 'white', padding: '0 20px', fontSize: '12px', fontWeight: 'bold' }
-const whatsappBtn = { width: '100%', background: '#25D366', color: 'white', border: 'none', padding: '14px', borderRadius: '15px', fontWeight: 'bold', fontSize: '12px' }
-const levelGrid = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }
-const levelCard = { padding: '20px 10px', borderRadius: '20px', textAlign: 'center', border: '1px solid #222' }
-const levelTitle = { fontSize: '9px', opacity: 0.5, display: 'block', marginBottom:'5px' }
-const levelPercent = { fontSize: '16px', fontWeight: 'bold', display: 'block', marginBottom: '5px' }
-const levelStat = { fontSize: '13px', fontWeight: 'bold' }
-const horizontalIconRow = { display: 'flex', justifyContent: 'space-around', background: '#111', padding: '20px 10px', borderRadius: '24px', border: '1px solid #222', marginBottom: '25px' }
-const iconBoxCompte = { textAlign: 'center', flex: 1, fontSize: '11px', fontWeight: '600' }
-const iconCircle = { width: '45px', height: '45px', borderRadius: '15px', margin: '0 auto 10px auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }
-const avatar = { width: "80px", height: "80px", background: "#111", borderRadius: "40px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "35px", border: "2px solid #00c896" }
-const aboutCard = { background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #222' }
-const bottomNav = { position: "fixed", bottom: 0, left: 0, right: 0, height: "85px", background: "rgba(10,10,10,0.95)", backdropFilter:'blur(10px)', display: "flex", borderTop: "1px solid #1a1a1a", zIndex: 100 }

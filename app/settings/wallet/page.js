@@ -1,146 +1,162 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import { supabase } from "../../../lib/supabase"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import Swal from 'sweetalert2'
 
-export default function WalletSettings() {
-  const router = useRouter()
-  const [network, setNetwork] = useState("")
-  const [number, setNumber] = useState("")
-  const [ownerName, setOwnerName] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [myWallets, setMyWallets] = useState([])
-
-  // Liste complète des réseaux par pays
-  const allNetworks = [
-    { label: "TOGO 🇹🇬", options: ["T-Money", "Moov (Flooz)"] },
-    { label: "BÉNIN 🇧🇯", options: ["MTN Bénin", "Moov Bénin", "Celtiis"] },
-    { label: "CÔTE D'IVOIRE 🇨🇮", options: ["Orange CI", "MTN CI", "Moov CI", "Wave CI"] },
-    { label: "SÉNÉGAL 🇸🇳", options: ["Orange Sénégal", "Free", "Wave Sénégal"] },
-    { label: "BURKINA FASO 🇧🇫", options: ["Orange BF", "Moov Africa BF"] },
-    { label: "MALI 🇲🇱", options: ["Orange Mali", "Malitel"] }
-  ]
-
-  useEffect(() => {
-    fetchWallets()
-  }, [])
-
-  const fetchWallets = async () => {
-    const phone = localStorage.getItem("phone")
-    const { data } = await supabase.from("wallets").select("*").eq("user_phone", phone)
-    if (data) setMyWallets(data)
-  }
-
-  const handleAddWallet = async (e) => {
-    e.preventDefault()
-    if (!network || !number || !ownerName) return alert("Veuillez remplir tous les champs")
-    
-    setLoading(true)
-    const phone = localStorage.getItem("phone")
-
-    const { error } = await supabase.from("wallets").insert([{
-      user_phone: phone,
-      network: network,
-      number: number,
-      owner_name: ownerName
-    }])
-
-    if (!error) {
-      alert("Portefeuille ajouté !")
-      setNumber("")
-      setOwnerName("")
-      fetchWallets()
-    } else {
-      alert("Erreur lors de l'ajout")
-    }
-    setLoading(false)
-  }
-
-  const deleteWallet = async (id) => {
-    if(confirm("Supprimer ce compte ?")) {
-        await supabase.from("wallets").delete().eq("id", id)
-        fetchWallets()
-    }
-  }
-
-  return (
-    <div style={container}>
-      <div style={header}>
-        <button onClick={() => router.back()} style={backBtn}>←</button>
-        <h2 style={{margin:0}}>Mon Portefeuille</h2>
-      </div>
-
-      {/* FORMULAIRE D'AJOUT */}
-      <div style={card}>
-        <h4 style={{marginTop:0, color:'#00c896'}}>Ajouter un nouveau compte</h4>
-        <form onSubmit={handleAddWallet}>
-          <p style={label}>Réseau Mobile</p>
-          <select 
-            style={select} 
-            value={network} 
-            onChange={(e) => setNetwork(e.target.value)}
-          >
-            <option value="">Sélectionnez un réseau...</option>
-            {allNetworks.map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {group.options.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-
-          <p style={label}>Numéro de téléphone</p>
-          <input 
-            style={input} 
-            placeholder="Ex: 90000000" 
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-          />
-
-          <p style={label}>Nom complet sur le compte</p>
-          <input 
-            style={input} 
-            placeholder="Nom affiché lors du transfert" 
-            value={ownerName}
-            onChange={(e) => setOwnerName(e.target.value)}
-          />
-
-          <button type="submit" disabled={loading} style={addBtn}>
-            {loading ? "Enregistrement..." : "ENREGISTRER LE COMPTE"}
-          </button>
-        </form>
-      </div>
-
-      {/* LISTE DES COMPTES ENREGISTRÉS */}
-      <h4 style={{margin:'30px 0 15px 0', opacity:0.7}}>Mes comptes enregistrés</h4>
-      {myWallets.length === 0 ? (
-          <p style={{fontSize:'13px', opacity:0.5}}>Aucun compte pour le moment.</p>
-      ) : (
-          myWallets.map((w) => (
-              <div key={w.id} style={walletItem}>
-                  <div>
-                      <div style={{fontWeight:'bold'}}>{w.network}</div>
-                      <div style={{fontSize:'14px', opacity:0.7}}>{w.number}</div>
-                      <div style={{fontSize:'12px', color:'#00c896'}}>{w.owner_name}</div>
-                  </div>
-                  <button onClick={() => deleteWallet(w.id)} style={delBtn}>🗑️</button>
-              </div>
-          ))
-      )}
-    </div>
-  )
+const COUNTRIES_CONFIG = {
+    "Togo": { prefix: "+228", length: 8, networks: ["T-Money", "Moov Money"] },
+    "Bénin": { prefix: "+229", length: 8, networks: ["MTN MoMo", "Moov Money"] },
+    "Côte d'Ivoire": { prefix: "+225", length: 10, networks: ["Orange Money", "MTN MoMo", "Moov Money", "Wave"] },
+    "Sénégal": { prefix: "+221", length: 9, networks: ["Orange Money", "Free Money", "Wave"] },
+    "Mali": { prefix: "+223", length: 8, networks: ["Orange Money", "Moov Money"] },
+    "Burkina Faso": { prefix: "+226", length: 8, networks: ["Orange Money", "Moov Money"] }
 }
 
-/* --- STYLES --- */
-const container = { minHeight: '100vh', background: '#0a0a0a', color: 'white', padding: '20px', fontFamily: 'sans-serif' }
-const header = { display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '25px' }
-const backBtn = { background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor:'pointer' }
-const card = { background: '#111', padding: '20px', borderRadius: '20px', border: '1px solid #222' }
-const label = { fontSize: '11px', opacity: 0.5, marginBottom: '8px', marginTop: '15px', fontWeight:'bold' }
-const input = { width: '100%', background: '#000', border: '1px solid #333', padding: '14px', borderRadius: '12px', color: 'white', outline: 'none' }
-const select = { width: '100%', background: '#000', border: '1px solid #333', padding: '14px', borderRadius: '12px', color: 'white', outline: 'none' }
-const addBtn = { width: '100%', background: '#00c896', color: 'white', border: 'none', padding: '16px', borderRadius: '12px', fontWeight: 'bold', marginTop: '20px', cursor:'pointer' }
-const walletItem = { display:'flex', justifyContent:'space-between', alignItems:'center', background:'#111', padding:'15px', borderRadius:'15px', border:'1px solid #222', marginBottom:'10px' }
-const delBtn = { background:'none', border:'none', cursor:'pointer', fontSize:'18px' }
+export default function WalletSettingsPage() {
+    const router = useRouter()
+    const [user, setUser] = useState(null)
+    const [loading, setLoading] = useState(false)
+    const [activeTab, setActiveTab] = useState('mobile') // 'mobile' ou 'crypto'
+
+    // États pour les formulaires
+    const [mobileForm, setMobileForm] = useState({ country: "Togo", network: "T-Money", number: "", label: "" })
+    const [cryptoForm, setCryptoForm] = useState({ type: "USDT_TRC20", address: "" })
+
+    useEffect(() => {
+        const loadUser = async () => {
+            const phone = localStorage.getItem("phone")
+            const { data } = await supabase.from("users").select("*").eq("phone", phone).single()
+            if (data) setUser(data)
+        }
+        loadUser()
+    }, [])
+
+    const validateMobile = () => {
+        const config = COUNTRIES_CONFIG[mobileForm.country]
+        const cleanNumber = mobileForm.number.replace(/\s/g, '')
+        if (cleanNumber.length !== config.length) {
+            Swal.fire({ icon: 'error', title: 'Format invalide', text: `Au ${mobileForm.country}, le numéro doit comporter exactement ${config.length} chiffres.`, background: '#111', color: '#fff' })
+            return false
+        }
+        return cleanNumber
+    }
+
+    const saveWallet = async (type, slot = null) => {
+        setLoading(true)
+        const phone = localStorage.getItem("phone")
+        let updateData = {}
+
+        try {
+            if (type === 'mobile') {
+                const cleanNum = validateMobile()
+                if (!cleanNum) return setLoading(false)
+                
+                const finalValue = `[${mobileForm.country}] ${mobileForm.network} : ${cleanNum} (${mobileForm.label.toUpperCase()})`
+                const column = slot === 1 ? "wallet_number" : "wallet_number_2"
+                updateData = { [column]: finalValue }
+            } else {
+                if (cryptoForm.address.length < 20) throw new Error("Adresse Crypto trop courte ou invalide.")
+                const column = cryptoForm.type === "USDT_BEP20" ? "usdt_bep20" : "usdt_trc20"
+                updateData = { [column]: cryptoForm.address }
+            }
+
+            const { error } = await supabase.from("users").update(updateData).eq("phone", phone)
+            if (error) throw error
+
+            await Swal.fire({ icon: 'success', title: 'ENREGISTRÉ', background: '#111', color: '#fff', confirmButtonColor: '#00c896' })
+            window.location.reload()
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Erreur', text: e.message, background: '#111', color: '#fff' })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    if (!user) return null
+
+    return (
+        <div style={s.container}>
+            <div style={s.header}>
+                <button onClick={() => router.back()} style={s.backBtn}>❮</button>
+                <h2 style={s.title}>Gestion des Wallets</h2>
+            </div>
+
+            {/* SÉLECTEUR DE FLUX : MOBILE OU CRYPTO */}
+            <div style={s.tabBar}>
+                <button onClick={() => setActiveTab('mobile')} style={{...s.tab, borderBottom: activeTab === 'mobile' ? '3px solid #00c896' : 'none', color: activeTab === 'mobile' ? '#00c896' : '#555'}}>MOBILE MONEY</button>
+                <button onClick={() => setActiveTab('crypto')} style={{...s.tab, borderBottom: activeTab === 'crypto' ? '3px solid #00c896' : 'none', color: activeTab === 'crypto' ? '#00c896' : '#555'}}>CRYPTO USDT</button>
+            </div>
+
+            {activeTab === 'mobile' ? (
+                <div style={s.section}>
+                    <p style={s.info}>Configurez jusqu'à 2 numéros de retrait mobile.</p>
+                    
+                    {/* SLOT 1 & 2 MOBILE */}
+                    {[1, 2].map(slot => (
+                        <div key={slot} style={s.card}>
+                            <div style={s.slotTitle}>COMPTE MOBILE {slot}</div>
+                            {user[`wallet_number${slot === 2 ? '_2' : ''}`] ? (
+                                <div style={s.savedVal}>{user[`wallet_number${slot === 2 ? '_2' : ''}`]}</div>
+                            ) : (
+                                <div style={s.form}>
+                                    <select style={s.input} onChange={(e) => setMobileForm({...mobileForm, country: e.target.value})}>
+                                        {Object.keys(COUNTRIES_CONFIG).map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <select style={s.input} onChange={(e) => setMobileForm({...mobileForm, network: e.target.value})}>
+                                        {COUNTRIES_CONFIG[mobileForm.country].networks.map(n => <option key={n} value={n}>{n}</option>)}
+                                    </select>
+                                    <input type="tel" placeholder="Numéro sans préfixe" style={s.input} onChange={(e) => setMobileForm({...mobileForm, number: e.target.value})} />
+                                    <input type="text" placeholder="Nom du titulaire" style={s.input} onChange={(e) => setMobileForm({...mobileForm, label: e.target.value})} />
+                                    <button onClick={() => saveWallet('mobile', slot)} style={s.btnSave}>LIER LE NUMÉRO</button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div style={s.section}>
+                    <p style={s.info}>Enregistrez vos adresses USDT pour les gros retraits.</p>
+                    
+                    <div style={s.card}>
+                        <div style={s.slotTitle}>USDT BEP20 (Binance Smart Chain)</div>
+                        {user.usdt_bep20 ? <div style={s.savedVal}>{user.usdt_bep20}</div> : 
+                            <div style={s.form}>
+                                <input type="text" placeholder="Adresse Ox..." style={s.input} onChange={(e) => setCryptoForm({type: "USDT_BEP20", address: e.target.value})} />
+                                <button onClick={() => saveWallet('crypto')} style={s.btnSave}>ENREGISTRER BEP20</button>
+                            </div>
+                        }
+                    </div>
+
+                    <div style={s.card}>
+                        <div style={s.slotTitle}>USDT TRC20 (Réseau TRON)</div>
+                        {user.usdt_trc20 ? <div style={s.savedVal}>{user.usdt_trc20}</div> : 
+                            <div style={s.form}>
+                                <input type="text" placeholder="Adresse T..." style={s.input} onChange={(e) => setCryptoForm({type: "USDT_TRC20", address: e.target.value})} />
+                                <button onClick={() => saveWallet('crypto')} style={s.btnSave}>ENREGISTRER TRC20</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+const s = {
+    container: { background: '#050505', minHeight: '100vh', padding: '20px', color: '#fff' },
+    header: { display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' },
+    backBtn: { background: '#111', border: '1px solid #222', color: '#fff', width: '40px', height: '40px', borderRadius: '12px' },
+    title: { fontSize: '18px', fontWeight: '900' },
+    tabBar: { display: 'flex', marginBottom: '25px', borderBottom: '1px solid #111' },
+    tab: { flex: 1, padding: '15px', background: 'none', border: 'none', fontWeight: '900', fontSize: '12px', cursor: 'pointer' },
+    section: { animation: 'fadeIn 0.5s ease' },
+    info: { fontSize: '12px', color: '#666', marginBottom: '20px' },
+    card: { background: '#0d0d0d', borderRadius: '20px', padding: '20px', marginBottom: '15px', border: '1px solid #1a1a1a' },
+    slotTitle: { fontSize: '10px', color: '#00c896', fontWeight: '900', marginBottom: '15px', letterSpacing: '1px' },
+    savedVal: { background: '#000', padding: '15px', borderRadius: '12px', fontSize: '13px', color: '#00c896', border: '1px solid #00c89633', wordBreak: 'break-all' },
+    form: { display: 'flex', flexDirection: 'column', gap: '10px' },
+    input: { background: '#000', border: '1px solid #222', padding: '15px', borderRadius: '12px', color: '#fff', outline: 'none' },
+    btnSave: { background: '#00c896', color: '#000', border: 'none', padding: '15px', borderRadius: '12px', fontWeight: '900', marginTop: '10px' }
+}
