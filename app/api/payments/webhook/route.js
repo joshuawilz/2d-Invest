@@ -2,16 +2,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
-// 1. CONFIGURATION DE PUISSANCE (Vraie Service Role Key)
-const supabaseUrl = 'https://gyrbmtiwvowfksxdnhsl.supabase.co'
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5cmJtdGl3dm93ZmtzeGRuaHNsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDkxNTY1NCwiZXhwIjoyMDg2NDkxNjU0fQ.DaHFojqKt_6OtsJZDIY0aEIyI05dDh1kehINhEVLyEk'
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-// 2. SECRET DE SÉCURITÉ (whsec exclusif pour la signature)
-const WEBHOOK_SECRET = 'whsec_26fdcd8519b4228c68a894fef5f31b9e798757026b1e474a'
-
 export async function POST(request) {
   try {
+    // 1. CONFIGURATION DE PUISSANCE (Initialisée à l'exécution)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://gyrbmtiwvowfksxdnhsl.supabase.co'
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 2. SECRET DE SÉCURITÉ (whsec exclusif pour la signature)
+    const WEBHOOK_SECRET = process.env.SENDAVAPAY_WEBHOOK_SECRET || ''
+
     const bodyText = await request.text()
     const signature = request.headers.get('x-sendavapay-signature')
     const event = request.headers.get('x-sendavapay-event')

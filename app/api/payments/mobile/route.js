@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// 1. FONDATION SUPABASE (Service Role pour une fluidité totale sans blocage RLS)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-// 2. CLE SECRETE SENDAVAPAY (Mode Live pour la rapidité des transactions)
-const SENDAVAPAY_SECRET_KEY = process.env.SENDAVAPAY_SECRET_KEY
-
 export async function POST(request) {
   try {
+    // 1. FONDATION SUPABASE (Initialisée à la demande pour ne pas bloquer le build)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://supabase.co'
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 2. CLE SECRETE SENDAVAPAY (Mode Live pour la rapidité des transactions)
+    const SENDAVAPAY_SECRET_KEY = process.env.SENDAVAPAY_SECRET_KEY
+
     const body = await request.json();
     const { userId, phone, amount, country } = body;
 

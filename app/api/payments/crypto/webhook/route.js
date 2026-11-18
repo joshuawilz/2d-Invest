@@ -2,17 +2,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
-// Configuration Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
-
-// TA CLÉ IPN (À récupérer dans ton Dashboard NOWPayments > Settings)
-const IPN_SECRET = "TON_IPN_SECRET_ICI" 
-
 export async function POST(request) {
   try {
+    // Configuration Supabase (Initialisée à l'exécution)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://supabase.co'
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // TA CLÉ IPN (À récupérer dans ton Dashboard NOWPayments > Settings)
+    const IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET || "TON_IPN_SECRET_ICI" 
+
     const body = await request.json()
     const headers = request.headers
     
